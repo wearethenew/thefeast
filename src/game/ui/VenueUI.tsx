@@ -712,29 +712,77 @@ function PhonePicker({
 }
 
 /**
- * Phones: the hall's video starts muted (the only way it may play by itself there); this turns
- * its sound on, from the tap itself. Shown in the hall until it's been tapped.
+ * Phones: the hall's video starts muted (the only way it's sure to play by itself there), and is
+ * turned up straight away: a phone that has been touched on the way in usually lets it. Only if
+ * the phone still keeps it quiet after a few tries does "Tap for sound" show, as the fallback.
  */
 function HallSound() {
   const touch = useTouch();
   const inHall = useGame((s) => s.zone === "hall");
   const video = useGame((s) => s.nowPlaying?.video);
-  const [on, setOn] = useState<string | null>(null);
-  if (!touch || !inHall || !video || on === video) return null;
-  const turnUp = () => {
-    const f = document.querySelector<HTMLIFrameElement>("iframe[data-hall-video]");
-    const post = (func: string, args: unknown[] = []) =>
-      f?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args }), "https://www.youtube-nocookie.com");
-    post("unMute");
-    post("setVolume", [100]);
-    post("playVideo");
-    setOn(video);
-  };
+  // per video: "trying" the first few seconds, then "on" (has sound) or "blocked" (needs a tap)
+  const [state, setState] = useState<{ video: string; is: "trying" | "on" | "blocked" } | null>(null);
+  const active = touch && inHall && !!video;
+  useEffect(() => {
+    if (!active || !video) return;
+    setState({ video, is: "trying" });
+    const frame = () => document.querySelector<HTMLIFrameElement>("iframe[data-hall-video]");
+    // what the player last said: muted or not, and playing (1) or not
+    let muted = true;
+    let playing = -1;
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== frame()?.contentWindow || typeof e.data !== "string") return;
+      try {
+        const info = JSON.parse(e.data)?.info;
+        if (typeof info?.muted === "boolean") muted = info.muted;
+        if (typeof info?.playerState === "number") playing = info.playerState;
+      } catch {
+        /* not a player message */
+      }
+    };
+    window.addEventListener("message", onMessage);
+    let tries = 0;
+    const id = setInterval(() => {
+      if (!muted && playing === 1) {
+        setState({ video, is: "on" });
+        return clearInterval(id);
+      }
+      if (++tries > 8) {
+        // the phone won't have it: playing quietly rather than stopped, and the button offered
+        const f = frame();
+        for (const func of ["mute", "playVideo"])
+          f?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args: [] }), "https://www.youtube-nocookie.com");
+        setState({ video, is: "blocked" });
+        return clearInterval(id);
+      }
+      turnUp();
+    }, 600);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("message", onMessage);
+    };
+  }, [active, video]);
+  if (!active || state?.video !== video || state.is !== "blocked") return null;
   return (
-    <button className="btn-gold pointer-events-auto absolute left-1/2 top-24 -translate-x-1/2 animate-pulse px-5 py-2.5 text-sm shadow-lg" onClick={turnUp}>
+    <button
+      className="btn-gold pointer-events-auto absolute left-1/2 top-24 -translate-x-1/2 animate-pulse px-5 py-2.5 text-sm shadow-lg"
+      onClick={() => {
+        turnUp();
+        setState({ video: video!, is: "on" });
+      }}
+    >
       🔊 Tap for sound
     </button>
   );
+}
+/** Asks the hall's video to unmute, go to full volume and play. */
+function turnUp() {
+  const f = document.querySelector<HTMLIFrameElement>("iframe[data-hall-video]");
+  const post = (func: string, args: unknown[] = []) =>
+    f?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args }), "https://www.youtube-nocookie.com");
+  post("unMute");
+  post("setVolume", [100]);
+  post("playVideo");
 }
 
 export function VenueUI() {
@@ -815,7 +863,8 @@ export function VenueUI() {
             </button>
           </div>
 
-          {!seated && label && spot !== "hall" && (
+          {/* (a seat on a computer has its own glowing "Press E" over the chair: no second one here) */}
+          {!seated && label && spot !== "hall" && !(spot === "seat" && !touch) && (
             // big and above the avatar picker: what you can do here, and the key that does it
             <div className="absolute bottom-24 left-1/2 -translate-x-1/2 sm:bottom-[196px]">
               <button

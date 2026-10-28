@@ -1281,7 +1281,7 @@ export function Venue({ world }: { world: LagosWorld }) {
           </mesh>
           {seatOffered && (
             <Html position={[0, 1.5, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-              <div className="whitespace-nowrap rounded-full bg-gold px-3 py-1.5 text-[13px] font-extrabold text-black shadow-[0_0_24px_rgba(246,195,90,0.8)]">
+              <div className="animate-pulse whitespace-nowrap rounded-full bg-gold px-4 py-2 text-[14px] font-extrabold text-black shadow-[0_0_28px_rgba(246,195,90,0.9)]">
                 {touch ? (
                   "Tap to sit here"
                 ) : (
