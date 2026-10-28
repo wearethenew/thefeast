@@ -148,8 +148,8 @@ const seats = {
   near: null as FreeSeat | null,
   mine: null as FreeSeat | null,
 };
-/** How close you need to be to a seat to sit in it. */
-const SEAT_REACH = 1.0;
+/** How close you need to be to a seat to sit in it (from the aisle in front of a row, too). */
+const SEAT_REACH = 1.7;
 /** The legroom in front of each row of floor seats (auditorium z), where you can walk along it. */
 const ROW_GAPS = [
   ...new Set(
@@ -257,6 +257,20 @@ function Countdown() {
 function LedWall() {
   const now = useGame((s) => s.nowPlaying);
   const set = useGame((s) => s.set);
+  // the wall is drawn behind the 3D view, through a hole cut where it hangs, so you and the people
+  // in front of it hide it as they should (a page over the view would cover everyone). That puts
+  // the 3D view on top for the mouse too: it keeps its dragging and clicking (videos are picked
+  // from the picker on screen once seated), and is put back as it was when the wall goes.
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    const el = gl.domElement;
+    el.style.pointerEvents = "";
+    return () => {
+      el.style.zIndex = "";
+      el.style.position = "";
+      el.style.pointerEvents = "";
+    };
+  }, [gl]);
   const playing = PLAYLIST.find((p) => p.video.id === now?.video);
   const stripH = 112;
   const videoH = WALL_H - stripH;
@@ -267,6 +281,7 @@ function LedWall() {
         transform
         scale={(LED.w / WALL_W) * 40}
         zIndexRange={[5, 0]}
+        occlude="blending"
         pointerEvents="auto"
       >
         <div
@@ -674,10 +689,18 @@ function VenueCrowd({
     all.current = [...walkers, ...roamers, ...queues.agents, ...seated];
     agents.current = all.current;
   }, [walkers, seated, roamers, queues]);
+  /** Would someone going to seat f, in from its nearest aisle along the row, pass yours? */
+  const passesYou = (f: FreeSeat) => {
+    const m = seats.mine ?? seats.near;
+    if (!m || m.row !== f.row) return false;
+    const aisle = SEATS.aisles.reduce((a, b) => (Math.abs(b - f.ax) < Math.abs(a - f.ax) ? b : a));
+    return (m.ax - aisle) * (f.ax - aisle) > 0 && Math.abs(m.ax - aisle) < Math.abs(f.ax - aisle);
+  };
   const arrive = (p: Agent) => {
-    // the next empty seat that isn't yours or the one you're about to sit in
+    // the next empty seat that isn't yours or the one you're about to sit in, nor past yours along
+    // its row (nobody squeezes past you, through your knees)
     const seat = free.find(
-      (f) => !f.taken && f !== seats.near && f !== seats.mine,
+      (f) => !f.taken && f !== seats.near && f !== seats.mine && !passesYou(f),
     );
     if (!seat) return;
     seat.taken = true;
@@ -868,7 +891,8 @@ export function Venue({ world }: { world: LagosWorld }) {
   const lastSpot = useRef<VenueSpot | string | null>(null);
   const insideRef = useRef(false);
   const wasSeated = useRef(false);
-  const marker = useRef<THREE.Mesh>(null);
+  const marker = useRef<THREE.Group>(null);
+  const seatOffered = useGame((s) => s.venueSpot === "seat" && !s.seated);
   const arrival = useRef(0);
   const zoom = useBoardZoom();
   const orbit = useRef({
@@ -1165,12 +1189,17 @@ export function Venue({ world }: { world: LagosWorld }) {
       // in the hall: the nearest empty seat within reach
       let near: FreeSeat | null = null;
       if (!spot && inside) {
+        // the nearest empty seat, the one you're facing first
         let best = SEAT_REACH;
+        const fx = Math.sin(s.heading), fz = Math.cos(s.heading);
         for (const f of seats.free) {
           if (f.taken) continue;
-          const d = Math.hypot(f.x - s.x, f.z - s.z);
-          if (d < best) {
-            best = d;
+          const dx = f.x - s.x, dz = f.z - s.z;
+          const d = Math.hypot(dx, dz);
+          if (d > SEAT_REACH) continue;
+          const score = d - (d > 0.01 ? ((dx * fx + dz * fz) / d) * 0.5 : 0);
+          if (score < best) {
+            best = score;
             near = f;
           }
         }
@@ -1183,7 +1212,7 @@ export function Venue({ world }: { world: LagosWorld }) {
       const n = seats.near;
       marker.current.visible = !seated && !!n;
       if (n) {
-        marker.current.position.set(n.x, 0.13, n.z);
+        marker.current.position.set(n.x, 0, n.z);
         marker.current.scale.setScalar(
           1 + Math.sin(performance.now() / 220) * 0.08,
         );
@@ -1223,21 +1252,27 @@ export function Venue({ world }: { world: LagosWorld }) {
           </Suspense>
           <NameTag name={player.name || "You"} you y={seated ? 1.55 : 2.05} />
         </group>
-        <mesh
-          ref={marker}
-          rotation-x={-Math.PI / 2}
-          visible={false}
-          renderOrder={5}
-        >
-          <ringGeometry args={[0.36, 0.46, 32]} />
-          <meshBasicMaterial
-            color={[2.6, 1.9, 0.4]}
-            toneMapped={false}
-            transparent
-            opacity={0.9}
-            depthWrite={false}
-          />
-        </mesh>
+        {/* the seat you'd sit in: a glowing ring on its cushion (seen through the rows in front) */}
+        <group ref={marker} visible={false}>
+          <mesh rotation-x={-Math.PI / 2} position-y={0.56} renderOrder={10}>
+            <ringGeometry args={[0.2, 0.32, 32]} />
+            <meshBasicMaterial
+              color={[2.6, 1.9, 0.4]}
+              toneMapped={false}
+              transparent
+              opacity={0.95}
+              depthWrite={false}
+              depthTest={false}
+            />
+          </mesh>
+          {seatOffered && (
+            <Html position={[0, 1.5, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
+              <div className="whitespace-nowrap rounded-full bg-gold px-3 py-1.5 text-[13px] font-extrabold text-black shadow-[0_0_24px_rgba(246,195,90,0.8)]">
+                <span className="mr-1.5 rounded bg-black/80 px-1.5 py-0.5 text-gold">E</span>Sit here
+              </div>
+            </Html>
+          )}
+        </group>
         {showWall && (
           <group position={AUD_GROUP.position} rotation-y={AUD_GROUP.rotation}>
             <LedWall />

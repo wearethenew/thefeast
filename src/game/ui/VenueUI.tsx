@@ -787,15 +787,16 @@ export function VenueUI() {
           </div>
 
           {!seated && label && spot !== "hall" && (
-            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 sm:bottom-10">
+            // big and above the avatar picker: what you can do here, and the key that does it
+            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 sm:bottom-[196px]">
               <button
-                className="btn-gold pointer-events-auto px-6 py-3 text-xs"
+                className="btn-gold pointer-events-auto animate-pulse px-7 py-3.5 text-sm shadow-[0_0_30px_rgba(246,195,90,0.65)] sm:px-9 sm:py-4 sm:text-base"
                 onClick={activate}
               >
-                {label}{" "}
-                <span className="ml-2 hidden rounded bg-black/20 px-1.5 sm:inline">
+                <span className="mr-2.5 hidden rounded-md bg-black/80 px-2 py-0.5 text-gold sm:inline">
                   E
                 </span>
+                {label}
               </button>
             </div>
           )}
