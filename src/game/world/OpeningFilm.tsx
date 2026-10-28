@@ -591,7 +591,7 @@ export function OpeningFilm({ world }: { world: LagosWorld }) {
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.1);
     // nothing moves until the loading screen has gone, so the jets are always seen
-    if (!useGame.getState().warm) return;
+    if (!useGame.getState().warm || !useGame.getState().ready) return;
     jetClock.current += dt;
     if (ready) readyFor.current += dt;
     // one shot of each jet, then straight on to the first campus (as soon as the crowd is ready)

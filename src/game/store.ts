@@ -102,6 +102,8 @@ type GameState = {
   warm: boolean;
   /** The film is holding at the end of the jets for the crowd's people to finish loading. */
   waitingCrowd: boolean;
+  /** Everything the opening film needs is in (its files, the city, the crowd's walkers): it may start. */
+  ready: boolean;
   /** Where you are at the Fusion Centre: things out of sight there aren't drawn. */
   zone: "street" | "yard" | "hall";
   /** The drone shot on screen during the procession (for captions). */
@@ -151,6 +153,7 @@ export const useGame = create<GameState>((set, get) => ({
   zone: "street",
   warm: false,
   waitingCrowd: false,
+  ready: false,
   panel: null,
   skipFilm: 0,
   freeCam: false,

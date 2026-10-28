@@ -3,7 +3,7 @@
 import { useProgress } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer, SMAA, Vignette } from "@react-three/postprocessing";
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { unlock } from "./audio";
 import { unmuteBillboard } from "./billboardAudio";
 import { SongPlayer } from "./ui/SongPlayer";
@@ -74,20 +74,32 @@ function Loader() {
   // once a stage is on screen it stays there: things loading in the background (the crowd's
   // people during the opening film) never bring the loader back over it
   const [shown, setShown] = useState<string | null>(null);
-  // (the crowd's people keep loading while the jets fly: the film only waits for them, over the
-  // last jet shot, if they're still not in when the first campus comes; see OpeningFilm)
+  // One card, one bar, from the first moment to the film: the files, the city getting ready
+  // (its shaders), and the crowd's walkers, each a share of the bar, which only ever moves on.
+  // The film starts once all of it is in, so no second loader ever comes over it. (Never more
+  // than a minute and a half on the crowd, though: a very slow phone gets the film anyway.)
   const crowd = useCrowdProgress();
-  const holding = useGame((s) => s.waitingCrowd);
-  // the world's own stages also wait for its shaders to finish compiling (see WorldScene)
-  const preparing = !active && !warm && (stage === "title" || stage === "venue");
-  const done = !active && !preparing;
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setWaited(true), 90000);
+    return () => clearTimeout(id);
+  }, []);
+  const crowdShare = waited ? 1 : Math.min(1, crowd / WALK_AVATARS.length);
+  const filesDone = !active;
+  const ready = stage !== "title" || (filesDone && warm && crowdShare >= 1);
+  useEffect(() => {
+    if (ready && stage === "title" && !useGame.getState().ready) useGame.getState().set({ ready: true });
+  }, [ready, stage]);
+  const reached = useRef(4);
+  const target = 4 + (filesDone ? 46 : (progress / 100) * 46) + (warm ? 15 : 0) + crowdShare * 35;
+  reached.current = Math.max(reached.current, Math.min(100, target));
+  // (the world's own stages also wait for their shaders to finish compiling: see WorldScene)
+  const done = filesDone && (warm || (stage !== "title" && stage !== "venue")) && ready;
   useEffect(() => {
     if (done && shown !== stage) setShown(stage);
   }, [done, shown, stage]);
-  if (holding && stage === "title") return <LoaderCard progress={(crowd / WALK_AVATARS.length) * 100} label={LOADING} />;
   if (done || shown === stage) return null;
-  // one message all the way: downloading, then the city getting ready (the bar full meanwhile)
-  return <LoaderCard progress={preparing ? 100 : progress} label={LOADING} />;
+  return <LoaderCard progress={reached.current} label={LOADING} />;
 }
 
 /** Pick a female or male avatar: over the opening film and while walking (not over a form, nor seated). */
@@ -152,7 +164,7 @@ function Scene() {
 
 function Overlay() {
   const stage = useGame((s) => s.stage);
-  const filmOn = useGame((s) => s.warm && !s.waitingCrowd);
+  const filmOn = useGame((s) => s.warm && s.ready && !s.waitingCrowd);
   switch (stage) {
     case "title":
       // (not under the loading card: only once the film itself starts)
