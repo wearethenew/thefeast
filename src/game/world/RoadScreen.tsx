@@ -9,6 +9,7 @@ import { PLOT, toWorld } from "./compound";
 import { ACCELERATE } from "../data/media";
 import { nearestRoad, segDist, type LagosWorld } from "./lagosData";
 import { YouTubeFrame } from "../ui/youtube";
+import { Q, sizedForDevice } from "../quality";
 import {
   billboardUnmuted,
   onSongChange,
@@ -109,7 +110,7 @@ function titleCard() {
   g.fillText("Pastor Shola Okodugha", 512, 380);
   g.font = "600 30px sans-serif";
   g.fillText("It is my time for speed", 512, 450);
-  const t = new THREE.CanvasTexture(c);
+  const t = new THREE.CanvasTexture(sizedForDevice(c));
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
@@ -312,7 +313,9 @@ export function RoadScreen({ world }: { world: LagosWorld }) {
       ))}
       {/* the video and its buttons, on the face turned toward you */}
       <group ref={live}>
-        {[0].map((r, i) => (
+        {/* (phones show the screen's title card instead: a playing video laid over the 3D view is
+            more than they can carry; the song itself plays on, from its own hidden player) */}
+        {!Q.lite && [0].map((r, i) => (
           <Html
             key={r}
             transform

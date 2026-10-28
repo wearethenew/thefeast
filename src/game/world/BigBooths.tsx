@@ -6,6 +6,7 @@ import type { Booth } from "./compound";
 import { Text } from "@react-three/drei";
 import { MERCH } from "../data/merch";
 import { foldedTeeTexture, merchTexture } from "./merchTextures";
+import { sizedForDevice } from "../quality";
 
 // The two big booths on the forecourt, built like real event structures: a branded registration
 // pavilion with four counters and queue lanes, and a merch store with racks, tables and a till.
@@ -35,7 +36,7 @@ function backdrop(title: string, sub: string, from: string, to: string) {
   g.fillStyle = "#ffffff";
   g.font = "700 64px sans-serif";
   g.fillText(sub, 1024, 470, 1900);
-  const t = new THREE.CanvasTexture(c);
+  const t = new THREE.CanvasTexture(sizedForDevice(c));
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
   return t;

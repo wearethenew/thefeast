@@ -57,6 +57,7 @@ import { sedan, suv } from "./vehicleModels";
 import { Chairs, StageRig } from "./hallRig";
 import { hallLight, primeHallLights, showHallLights } from "./hallLights";
 import { MerchStore, RegistrationPavilion } from "./BigBooths";
+import { Q } from "../quality";
 
 // The New Fusion Centre, Ogba, modelled from the architect's renders (references/fusion-centre):
 // sky-blue gable roof with the mark and "THE NEW"; white ribbed cladding; a front of white
@@ -2283,6 +2284,9 @@ function SurroundingTrees({ world }: { world: LagosWorld }) {
 export function FusionCentre({ world }: { world: LagosWorld }) {
   void world;
   const mats = useMats();
+  // phones build the hall's insides only once you're walking the venue (the aerial never sees
+  // through the roof): thousands of chairs and the stage rig are a lot to carry for nothing
+  const inVenue = useGame((s) => s.stage === "venue");
   return (
     <group
       position={[COMPOUND.center[0], 0, COMPOUND.center[1]]}
@@ -2293,8 +2297,8 @@ export function FusionCentre({ world }: { world: LagosWorld }) {
       <Hall mats={mats} />
       <Annex mats={mats} />
       {/* the hall's insides only exist once you're in the compound (never in the opening film) */}
-      {/* always there, so the hall is full seen through the doors and nothing compiles as you walk in */}
-      <Interior mats={mats} />
+      {/* always there on computers, so the hall is full seen through the doors and nothing compiles as you walk in */}
+      {(!Q.lite || inVenue) && <Interior mats={mats} />}
       <Kiosk mats={mats} />
       <Hoop mats={mats} />
       <ParkedCars />

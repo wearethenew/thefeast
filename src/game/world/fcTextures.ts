@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { drawMarkCanvas } from "../brand";
 import { COURT, HALL, MAIN_DOOR, PAVERS, PLOT } from "./compound";
+import { sizedForDevice } from "../quality";
 
 // Procedural surfaces for the Fusion Centre, matched to the architect's renders.
 
@@ -12,7 +13,7 @@ function canvas(w: number, h: number) {
 }
 
 function tex(c: HTMLCanvasElement, repeat: [number, number] = [1, 1], srgb = true) {
-  const t = new THREE.CanvasTexture(c);
+  const t = new THREE.CanvasTexture(sizedForDevice(c));
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(...repeat);
   t.anisotropy = 16;
@@ -157,7 +158,7 @@ export function logoDisc() {
   g.arc(256, 256, 250, 0, Math.PI * 2);
   g.fill();
   drawMarkCanvas(g, 256, 256, 250, "#1a1a1a");
-  const t = new THREE.CanvasTexture(c);
+  const t = new THREE.CanvasTexture(sizedForDevice(c));
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
   return t;
@@ -171,7 +172,7 @@ export function chairLogo() {
   g.font = "800 34px sans-serif";
   g.textAlign = "center";
   g.fillText("THE NEW", 128, 232);
-  const t = new THREE.CanvasTexture(c);
+  const t = new THREE.CanvasTexture(sizedForDevice(c));
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
   return t;
@@ -188,7 +189,7 @@ export function roofGraphic() {
   g.translate(512, 1450);
   g.fillText("THE NEW", 0, 80);
   g.restore();
-  const t = new THREE.CanvasTexture(c);
+  const t = new THREE.CanvasTexture(sizedForDevice(c));
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 16;
   return t;
@@ -260,7 +261,7 @@ export function yardPlan() {
     g.lineTo(X(4.35 + off), Z(26));
     g.stroke();
   }
-  const t = new THREE.CanvasTexture(c);
+  const t = new THREE.CanvasTexture(sizedForDevice(c));
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 16;
   return t;
@@ -289,7 +290,7 @@ export function frondTexture() {
       g.stroke();
     }
   }
-  const t = new THREE.CanvasTexture(c);
+  const t = new THREE.CanvasTexture(sizedForDevice(c));
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }

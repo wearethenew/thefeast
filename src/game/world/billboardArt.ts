@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { sizedForDevice } from "../quality";
 
 // Artwork for the big roadside boards, drawn on canvas in the Feast's poster style.
 
@@ -112,7 +113,7 @@ async function draw(kind: ArtKind) {
   g.fillStyle = "rgba(0,0,0,0.12)";
   for (let x = 0; x < W; x += 4) g.fillRect(x, 0, 1, H);
   for (let y = 0; y < H; y += 4) g.fillRect(0, y, W, 1);
-  const t = new THREE.CanvasTexture(c);
+  const t = new THREE.CanvasTexture(sizedForDevice(c));
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
   return t;

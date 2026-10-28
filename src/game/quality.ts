@@ -51,3 +51,19 @@ const LEVELS = {
 
 /** This device's settings. */
 export const Q = LEVELS[TIER];
+
+/**
+ * A canvas drawn for a texture (signs, boards, roof art), at the size this device needs: phones
+ * get half the width and height (a quarter of the graphics memory). On a phone's screen they're
+ * never shown big enough for the difference to show. Small canvases are left as they are.
+ */
+export function sizedForDevice(c: HTMLCanvasElement): HTMLCanvasElement {
+  if (!Q.lite || Math.max(c.width, c.height) <= 512) return c;
+  const d = document.createElement("canvas");
+  d.width = Math.round(c.width / 2);
+  d.height = Math.round(c.height / 2);
+  const g = d.getContext("2d")!;
+  g.imageSmoothingQuality = "high";
+  g.drawImage(c, 0, 0, d.width, d.height);
+  return d;
+}
