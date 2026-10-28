@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { after } from "next/server";
 import { emailConfigured, sendEmail } from "@/server/email";
 import { save } from "@/server/storage";
 import { bad, clean, isEmail } from "@/server/validate";
@@ -34,9 +35,10 @@ export async function POST(req: Request) {
     <p><a href="${link}" style="display:inline-block;background:#f6c35a;color:#1b1030;padding:14px 22px;border-radius:999px;font-weight:800;text-decoration:none">Light your torch →</a></p>
     <p style="font-size:12px;opacity:.7">The New Church · wearethenew.org</p></div>`;
 
-  let sent = false;
-  // (the invite is saved either way: if the email can't go, the visitor's own mail app sends it)
-  if (emailConfigured()) sent = await sendEmail(email, subject, html, text).catch((e) => (console.error("[invite] email failed", e), false));
+  // (sent after the reply, so nobody waits on the mail server; with no email set up, the
+  // visitor's own mail app sends it instead)
+  const sent = emailConfigured();
+  if (sent) after(() => sendEmail(email, subject, html, text).catch((e) => console.error("[invite] email failed", e)));
   // without an email service the browser opens the visitor's own mail app with this message
   const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
   return Response.json({ ok: true, sent, link, mailto: sent ? null : mailto });

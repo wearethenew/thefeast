@@ -180,7 +180,7 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
           <p>
             {already
               ? `You're registered${already.firstName ? `, ${already.firstName}` : ""}, and your torch is lit. The Main Hall is open to you.`
-              : `Your registration for The Feast 2026: The Torch is confirmed${done.emailed ? `, and we've emailed your pass to ${f.email}` : ""}. Carry your torch into the Main Hall.`}
+              : `Your registration for The Feast 2026: The Torch is confirmed${done.emailed ? `, and your pass is on its way to ${f.email}` : ""}. Carry your torch into the Main Hall.`}
           </p>
           {done.ticket && (
             <div className="mt-4 flex items-center gap-4 rounded bg-white p-3 text-black">

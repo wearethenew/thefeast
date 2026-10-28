@@ -1,6 +1,7 @@
 import { randomInt } from "crypto";
 import QRCode from "qrcode";
-import { sendEmail } from "@/server/email";
+import { after } from "next/server";
+import { emailConfigured, sendEmail } from "@/server/email";
 import { column, save } from "@/server/storage";
 import { bad, clean, isEmail } from "@/server/validate";
 
@@ -134,12 +135,15 @@ export async function POST(req: Request) {
   const [code, ticket] = await Promise.all([referralCode(firstName), ticketId()]);
   const qr = await QRCode.toBuffer(ticket, { type: "png", width: 440, margin: 2, errorCorrectionLevel: "M", color: { dark: "#06134d", light: "#ffffff" } });
   const mail = confirmation(firstName, code, ticket, plan, passDays, attendance === "online");
-  let emailed = false;
-  try {
-    emailed = await sendEmail(email, mail.subject, mail.html, mail.text, [{ cid: "checkin-qr", filename: `${ticket}.png`, png: qr }]);
-  } catch (e) {
-    console.error("[register] email failed", e);
-  }
+  // the pass is shown straight away; the email goes after the reply (a slow mail server never
+  // keeps anyone waiting on the form)
+  const emailed = emailConfigured();
+  if (emailed)
+    after(() =>
+      sendEmail(email, mail.subject, mail.html, mail.text, [{ cid: "checkin-qr", filename: `${ticket}.png`, png: qr }]).catch((e) =>
+        console.error("[register] email failed", e),
+      ),
+    );
   await save("registrations", {
     first_name: firstName,
     last_name: lastName || null,
