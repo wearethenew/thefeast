@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { emailConfigured, sendEmail } from "@/server/email";
 import { column, save } from "@/server/storage";
 import { bad, clean, isEmail } from "@/server/validate";
-import { daysLabel, daysPass, pickedDays } from "@/server/days";
+import { daysFull, daysPass, pickedDays } from "@/server/days";
 
 const SITE = "thefeast.wearethenew.org";
 
@@ -116,12 +116,12 @@ export async function POST(req: Request) {
   if (body.teens === true && teens < 1) return bad("How many teenagers are coming with you?");
   const ages = kidsAges.length ? ` (${kidsAges.length === 1 ? "age" : "ages"} ${kidsAges.join(", ")})` : "";
   const company = [kids && `${kids} ${kids === 1 ? "kid" : "kids"}${ages}`, teens && `${teens} ${teens === 1 ? "teenager" : "teenagers"}`].filter(Boolean).join(" and ");
-  const when = attendance === "online" ? "You're joining online." : `You're with us onsite: ${daysLabel(picked)}.`;
+  const when = attendance === "online" ? "You're joining online." : `You're with us onsite: ${daysFull(picked)}.`;
   const plan = [when, company && `You're coming with ${company}.`].filter(Boolean).join(" ");
   const passDays = attendance === "online" ? "Online" : daysPass(picked);
   const [code, ticket] = await Promise.all([referralCode(firstName), ticketId()]);
   const qr = await QRCode.toBuffer(ticket, { type: "png", width: 440, margin: 2, errorCorrectionLevel: "M", color: { dark: "#06134d", light: "#ffffff" } });
-  const mail = confirmation(firstName, code, ticket, plan, passDays, attendance === "online");
+  const mail = confirmation(firstName, code, ticket, plan, attendance === "online" ? "Online" : daysFull(picked), attendance === "online");
   // the pass is shown straight away; the email goes after the reply (a slow mail server never
   // keeps anyone waiting on the form)
   const emailed = emailConfigured();
