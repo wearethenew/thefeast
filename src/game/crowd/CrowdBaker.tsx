@@ -58,6 +58,8 @@ function dropPageCopy(t: THREE.Texture) {
   t.image = size;
 }
 
+const TOUCH = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+
 export function CrowdBaker() {
   const [job, setJob] = useState(0);
   const [ready, setReady] = useState(false);
@@ -101,7 +103,8 @@ export function CrowdBaker() {
     // a slice of each frame for baking: generous while the crowd isn't drawable yet (the jets are
     // a light scene, and the film waits on it), a few milliseconds once it is
     const t0 = performance.now();
-    const budget = models.size < CORE_MODELS ? 10 : 4;
+    // (a phone gets smaller slices: its frames have less to spare)
+    const budget = (models.size < CORE_MODELS ? 10 : 4) * (TOUCH ? 0.5 : 1);
     let r = running.current.next();
     while (!r.done && performance.now() - t0 < budget) r = running.current.next();
     if (!r.done) return;

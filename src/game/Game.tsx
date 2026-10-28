@@ -16,6 +16,13 @@ import { WorldScene } from "./scenes/WorldScene";
 import { CrowdBaker, WALK_AVATARS, useCrowdProgress } from "./crowd/CrowdBaker";
 
 const LOADING = "Bringing great joy to the city…";
+
+/**
+ * Phones and tablets draw a lighter frame: the screen's own pixel density (no supersampling),
+ * no shadow pass and no glow pass (each needs whole extra screens of graphics memory and drawing
+ * every frame). The scene, its people and its lights are the same; it's what lets a phone keep it.
+ */
+const LITE = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 import { useGame } from "./store";
 import { TitleUI } from "./ui/TitleUI";
 import { VenueUI } from "./ui/VenueUI";
@@ -211,8 +218,8 @@ export default function Game() {
   return (
     <div className="fixed inset-0 select-none">
       <Canvas
-        shadows
-        dpr={[1, 1.5]}
+        shadows={!LITE}
+        dpr={LITE ? 1 : [1, 1.5]}
         gl={{ antialias: false, toneMapping: THREE.NeutralToneMapping, outputColorSpace: THREE.SRGBColorSpace, powerPreference: "high-performance" }}
         camera={{ position: [0, 1.6, 4], fov: 40, near: 0.1, far: 30000 }}
         onCreated={({ gl }) => {
@@ -229,11 +236,13 @@ export default function Game() {
           {/* real people for the crowds, baked in the background while the opening film plays */}
           <CrowdBaker />
           <DevExpose />
-          <EffectComposer multisampling={0}>
-            <SMAA />
-            <Bloom intensity={0.85} luminanceThreshold={0.9} luminanceSmoothing={0.2} mipmapBlur />
-            <Vignette darkness={0.45} offset={0.35} />
-          </EffectComposer>
+          {!LITE && (
+            <EffectComposer multisampling={0}>
+              <SMAA />
+              <Bloom intensity={0.85} luminanceThreshold={0.9} luminanceSmoothing={0.2} mipmapBlur />
+              <Vignette darkness={0.45} offset={0.35} />
+            </EffectComposer>
+          )}
         </Suspense>
       </Canvas>
       {!lab && (
