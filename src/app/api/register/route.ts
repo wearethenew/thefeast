@@ -90,14 +90,16 @@ function howMany(v: unknown) {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   if (!body) return bad("Invalid request");
-  const name = clean(body.name, 120).replace(/\s+/g, " ");
-  const [firstName, ...rest] = name.split(" ");
-  const lastName = rest.join(" ");
+  // first and last name as given (an older page may still send one "name": split at its first space)
+  const given = clean(body.name, 120).replace(/\s+/g, " ");
+  const firstName = clean(body.firstName, 60).replace(/\s+/g, " ") || given.split(" ")[0];
+  const lastName = clean(body.lastName, 60).replace(/\s+/g, " ") || given.split(" ").slice(1).join(" ");
   const email = clean(body.email, 120).toLowerCase();
   const phone = clean(body.phone, 40);
   const country = clean(body.country, 60);
   const referredBy = clean(body.referredBy, 40).toUpperCase();
-  if (name.length < 2) return bad("Please add your name");
+  if (!firstName) return bad("Please add your first name");
+  if (!lastName) return bad("Please add your last name");
   if (!isEmail(email)) return bad("Please add a valid email");
   if (phone.replace(/\D/g, "").length < 7) return bad("Please add a phone number");
   if (!country) return bad("Please add your country");

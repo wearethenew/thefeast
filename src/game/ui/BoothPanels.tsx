@@ -123,7 +123,8 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
   // already registered on this browser: straight to your torch, pass and referral ID
   const [already] = useState(() => useGame.getState().registered);
   const back = useGame((s) => s.torchReturn);
-  const [f, setF] = useState({ name: "", email: "", phone: "", country: "Nigeria" });
+  const [f, setF] = useState({ firstName: "", lastName: "", email: "", phone: "", country: "Nigeria" });
+  const fullName = `${f.firstName.trim()} ${f.lastName.trim()}`.trim();
   const [kids, setKids] = useState<boolean | null>(null);
   const [teens, setTeens] = useState<boolean | null>(null);
   const [kidsCount, setKidsCount] = useState("");
@@ -143,7 +144,8 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
   // everything required answered: only then can it be sent
   const agesOk = !kids || (Number(kidsCount) >= 1 && kidsAges.slice(0, Number(kidsCount)).filter((a) => a !== "" && Number(a) >= 0 && Number(a) <= 12).length === Number(kidsCount));
   const ready =
-    !!f.name.trim() &&
+    !!f.firstName.trim() &&
+    !!f.lastName.trim() &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim()) &&
     f.phone.replace(/\D/g, "").length >= 7 &&
     attendance !== null &&
@@ -170,7 +172,7 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
       const r = await post("/api/register", { ...f, attendance, days: attendance === "onsite" ? days : [], kids, kidsCount: Number(kidsCount) || 0, kidsAges: ages, teens, teensCount: Number(teensCount) || 0 });
       setDone({ code: r.code, ticket: r.ticket, qr: r.qr, emailed: r.emailed, days: r.passDays, online: attendance === "online" });
       // your torch: carried from here on, and the Main Hall's doors open to you
-      register({ code: r.code, ticket: r.ticket, qr: r.qr, days: r.passDays, online: attendance === "online", firstName: f.name.trim().split(/\s+/)[0], name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), at: Date.now() });
+      register({ code: r.code, ticket: r.ticket, qr: r.qr, days: r.passDays, online: attendance === "online", firstName: f.firstName.trim(), name: fullName, email: f.email.trim(), phone: f.phone.trim(), at: Date.now() });
     } catch (x) {
       setErr((x as Error).message);
     } finally {
@@ -264,9 +266,15 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
               </div>
             ))}
           </div>
-          <div>
-            <label className={label}>Name</label>
-            <input className={field} value={f.name} onChange={up("name")} autoComplete="name" placeholder="Your full name" required />
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <label className={label}>First name</label>
+              <input className={field} value={f.firstName} onChange={up("firstName")} autoComplete="given-name" required />
+            </div>
+            <div>
+              <label className={label}>Last name</label>
+              <input className={field} value={f.lastName} onChange={up("lastName")} autoComplete="family-name" required />
+            </div>
           </div>
           <div>
             <label className={label}>Email</label>
