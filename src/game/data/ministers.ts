@@ -1,7 +1,8 @@
 // Ministers announced on The Feast 2026 posters, with YouTube videos to play on the hall screens.
 // Video IDs found via YouTube search on 26 Oct 2026; swap for official Feast promos when available.
 
-export type MinisterVideo = { id: string; title: string };
+/** `start`: seconds in to begin from (skipping a slow or silent opening). */
+export type MinisterVideo = { id: string; title: string; start?: number };
 export type Minister = { id: string; title: string; name: string; role: string; videos: MinisterVideo[] };
 
 export const MINISTERS: Minister[] = [
@@ -11,7 +12,7 @@ export const MINISTERS: Minister[] = [
     name: "Shola Okodugha",
     role: "Global Lead Pastor, The New Church",
     videos: [
-      { id: "n8N0XyQeajk", title: "The Shofar [Finale] · The Feast 2025" },
+      { id: "n8N0XyQeajk", title: "The Shofar [Finale] · The Feast 2025", start: 12 },
       { id: "SlV8gUuYcwU", title: "Redefining Christianity: Living Generously" },
       { id: "7TbBHlbqvcY", title: "Redefining Christianity: What Is True Christianity?" },
     ],

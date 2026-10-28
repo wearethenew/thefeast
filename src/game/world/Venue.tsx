@@ -311,7 +311,7 @@ function LedWall() {
                   key={now.video}
                   width={videoW}
                   height={videoH}
-                  src={`https://www.youtube-nocookie.com/embed/${now.video}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+                  src={`https://www.youtube-nocookie.com/embed/${now.video}?autoplay=1&rel=0&modestbranding=1&playsinline=1${playing?.video.start ? `&start=${playing.video.start}` : ""}`}
                   title="The Feast 2026"
                   allow="autoplay; encrypted-media; picture-in-picture"
                   allowFullScreen
