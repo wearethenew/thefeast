@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# raw 3D sources (large; regenerate with scripts/build-avatars.mjs)
+/assets-src
+
+# local sign-up storage when no database is configured
+/.data
+/.next-prod/
+
+# netlify
+.netlify
