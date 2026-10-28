@@ -68,6 +68,7 @@ import { type LagosWorld } from "./lagosData";
 import { aimWedge, insideHallWorld, outsideWedge, throughDoor, toLocal } from "./hallView";
 import { useBoardZoom } from "./BoothBoards";
 import { YouTubeFrame } from "../ui/youtube";
+import { useTouch } from "../ui/useSmallScreen";
 
 // Walking the Fusion Centre compound with your torch: interaction spots, other attendees,
 // and the hall where the LED wall plays the ministers' videos.
@@ -893,6 +894,7 @@ export function Venue({ world }: { world: LagosWorld }) {
   const wasSeated = useRef(false);
   const marker = useRef<THREE.Group>(null);
   const seatOffered = useGame((s) => s.venueSpot === "seat" && !s.seated);
+  const touch = useTouch();
   const arrival = useRef(0);
   const zoom = useBoardZoom();
   const orbit = useRef({
@@ -1268,7 +1270,13 @@ export function Venue({ world }: { world: LagosWorld }) {
           {seatOffered && (
             <Html position={[0, 1.5, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
               <div className="whitespace-nowrap rounded-full bg-gold px-3 py-1.5 text-[13px] font-extrabold text-black shadow-[0_0_24px_rgba(246,195,90,0.8)]">
-                <span className="mr-1.5 rounded bg-black/80 px-1.5 py-0.5 text-gold">E</span>Sit here
+                {touch ? (
+                  "Tap to sit here"
+                ) : (
+                  <>
+                    Press <span className="mx-1 rounded bg-black/80 px-1.5 py-0.5 text-gold">E</span> to sit here
+                  </>
+                )}
               </div>
             </Html>
           )}

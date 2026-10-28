@@ -8,6 +8,7 @@ import { input } from "../input";
 import { useGame } from "../store";
 import { SPOTS } from "../world/Venue";
 import { InviteFriend } from "./InviteFriend";
+import { useTouch } from "./useSmallScreen";
 
 // Overlay for the Fusion Centre: interaction prompts, the desks' panels, the pass, and the
 // minister video picker once you are seated in the hall.
@@ -727,8 +728,9 @@ export function VenueUI() {
   }, [registered, wasRegistered]);
 
   const boothPanel = useGame((s) => s.panel);
+  const touch = useTouch();
   const label =
-    spot === "seat" ? "Sit here" : SPOTS.find((s) => s.id === spot)?.label;
+    spot === "seat" ? (touch ? "Tap to sit here" : "Press E to sit here") : SPOTS.find((s) => s.id === spot)?.label;
   const activate = () => {
     if (!spot) return;
     if (spot === "seat") set({ seated: true });
@@ -793,9 +795,10 @@ export function VenueUI() {
                 className="btn-gold pointer-events-auto animate-pulse px-7 py-3.5 text-sm shadow-[0_0_30px_rgba(246,195,90,0.65)] sm:px-9 sm:py-4 sm:text-base"
                 onClick={activate}
               >
-                <span className="mr-2.5 hidden rounded-md bg-black/80 px-2 py-0.5 text-gold sm:inline">
-                  E
-                </span>
+                {/* (the seat's own words already say which key) */}
+                {spot !== "seat" && !touch && (
+                  <span className="mr-2.5 rounded-md bg-black/80 px-2 py-0.5 text-gold">E</span>
+                )}
                 {label}
               </button>
             </div>
