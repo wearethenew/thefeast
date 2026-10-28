@@ -76,7 +76,7 @@ export function InviteFriend({ onClose }: { onClose: () => void }) {
   const ready = friend.trim().length > 1 && /\S+@\S+\.\S+/.test(email);
   return (
     <div className="pointer-events-auto fixed inset-0 z-30 flex items-end justify-center bg-black/40 p-3 sm:items-center">
-      <div className="glass max-h-[88vh] w-full max-w-md overflow-y-auto rounded-2xl p-5">
+      <div className="glass max-h-[88dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl p-5">
         <div className="flex items-start justify-between">
           <div>
             <div className="eyebrow text-[10px]">Pass the fire</div>

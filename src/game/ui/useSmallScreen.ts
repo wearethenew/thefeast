@@ -30,3 +30,16 @@ const onTouchChange = (fn: () => void) => {
 export function useTouch() {
   return useSyncExternalStore(onTouchChange, () => window.matchMedia(TOUCH).matches, () => false);
 }
+
+/**
+ * Forms open as a sheet over the whole screen (rather than on a booth's board in the 3D scene) on
+ * phones and on any touch screen: a page tilted in 3D doesn't scroll reliably under a finger,
+ * and a sheet always does.
+ */
+export function useSheetForms() {
+  const small = useSmallScreen();
+  const touch = useTouch();
+  return small || touch;
+}
+/** The same, outside React. */
+export const sheetForms = () => isSmallScreen() || (typeof window !== "undefined" && window.matchMedia(TOUCH).matches);

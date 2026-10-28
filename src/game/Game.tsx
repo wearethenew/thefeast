@@ -8,7 +8,7 @@ import { unlock } from "./audio";
 import { unmuteBillboard } from "./billboardAudio";
 import { SongPlayer } from "./ui/SongPlayer";
 import { BoothPanels } from "./ui/BoothPanels";
-import { useSmallScreen } from "./ui/useSmallScreen";
+import { useSheetForms, useSmallScreen } from "./ui/useSmallScreen";
 import { AvatarPicker } from "./ui/AvatarPicker";
 import * as THREE from "three";
 import { preloadAvatars } from "./avatar/Avatar";
@@ -116,7 +116,7 @@ function PickAvatar() {
 
 /** On phones a booth's form is a sheet over the whole screen (on bigger screens it's on the booth's board). */
 function PhonePanel() {
-  const small = useSmallScreen();
+  const small = useSheetForms();
   const panel = useGame((s) => s.panel);
   const stage = useGame((s) => s.stage);
   if (!small || !panel || (stage !== "title" && stage !== "venue")) return null;

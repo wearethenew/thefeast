@@ -44,7 +44,7 @@ function Panel({
   return (
     <div className="pointer-events-auto fixed inset-0 z-20 flex items-end justify-center bg-black/40 p-3 sm:items-center">
       <div
-        className={`glass max-h-[86vh] w-full overflow-y-auto rounded-2xl p-5 ${wide ? "max-w-2xl" : "max-w-md"}`}
+        className={`glass max-h-[86dvh] w-full overflow-y-auto overscroll-contain rounded-2xl p-5 ${wide ? "max-w-2xl" : "max-w-md"}`}
       >
         <div className="flex items-start justify-between">
           <div>
@@ -640,7 +640,7 @@ function PhonePicker({
           </button>
         </div>
         {open ? (
-          <div className="max-h-[45vh] overflow-y-auto overscroll-contain px-3 pb-1">
+          <div className="max-h-[45dvh] overflow-y-auto overscroll-contain px-3 pb-1">
             {MINISTERS.map((m) => (
               <div key={m.id} className="mt-2">
                 <div className="flex items-baseline gap-1.5">

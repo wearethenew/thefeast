@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import * as THREE from "three";
 import { useGame } from "../store";
 import { BoardContext, BoothPanels } from "../ui/BoothPanels";
-import { isSmallScreen, useSmallScreen } from "../ui/useSmallScreen";
+import { sheetForms, useSheetForms } from "../ui/useSmallScreen";
 import { COMPOUND, TENTS, boothBoard, toWorld, type Booth } from "./compound";
 
 // Each booth's display board: tapping a booth's button flies the camera in to it, and the form
@@ -65,7 +65,7 @@ function boardFace(title: string, sub: string) {
 
 function Board({ t, open: wanted }: { t: Booth; open: boolean }) {
   // on phones the form opens as a sheet over the screen instead (see Game's PhonePanel)
-  const small = useSmallScreen();
+  const small = useSheetForms();
   const open = wanted && !small;
   const [W, H] = boardSize(t.id);
   const [pw, ph] = px(t.id);
@@ -168,7 +168,7 @@ export function useBoardZoom() {
   const state = useMemo(() => ({ k: 0, pos: new THREE.Vector3(), look: new THREE.Vector3() }), []);
   return (camera: THREE.PerspectiveCamera, dt: number, wantPos: THREE.Vector3, wantLook: THREE.Vector3) => {
     const id = useGame.getState().panel;
-    const t = isSmallScreen() ? undefined : TENTS.find((b) => b.id === id);
+    const t = sheetForms() ? undefined : TENTS.find((b) => b.id === id);
     state.k = THREE.MathUtils.clamp(state.k + (t ? dt : -dt) * 1.4, 0, 1);
     if (t) {
       const v = boardView(t, camera.fov, camera.aspect);
