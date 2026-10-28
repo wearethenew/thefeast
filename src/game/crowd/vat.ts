@@ -167,33 +167,53 @@ export function* bakeSteps(root: THREE.Object3D, handle: AvatarHandle, anim: Ani
 
   const frame0: Float32Array[] = [];
   const normals0: Float32Array[] = [];
+  // (working arrays made once per part and reused every frame: baking a whole crowd otherwise
+  // leaves millions of throwaway arrays behind, enough to push a phone's tab over its memory limit)
+  const scratch = prepared.map((p) => ({
+    all: new Float32Array(p.total * 3),
+    kp: new Float32Array(p.kept.length * 3),
+    nr: new Float32Array(p.kept.length * 3),
+    // the triangles' corners already mapped to kept vertices
+    tri: Uint32Array.from(p.lods[0], (i) => p.remap.get(i)!),
+  }));
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
   for (let f = 0; f < frames; f++) {
     handle.seek((f / frames) * duration);
     root.updateMatrixWorld(true);
-    for (const p of prepared) {
-      const all = new Float32Array(p.total * 3);
+    for (const [pi, p] of prepared.entries()) {
+      const sc = scratch[pi];
+      const all = sc.all;
       let off = 0;
       for (const s of p.part.sources) {
         sample(s, inv, all, off);
         off += s.mesh.geometry.getAttribute("position").count;
       }
-      const kp = new Float32Array(p.kept.length * 3);
-      p.kept.forEach((k, j) => kp.set([all[k * 3], all[k * 3 + 1], all[k * 3 + 2]], j * 3));
+      // (the first frame's are kept as the people's resting shape: fresh arrays for those)
+      const kp = f === 0 ? new Float32Array(p.kept.length * 3) : sc.kp;
+      for (let j = 0; j < p.kept.length; j++) {
+        const k = p.kept[j];
+        kp[j * 3] = all[k * 3];
+        kp[j * 3 + 1] = all[k * 3 + 1];
+        kp[j * 3 + 2] = all[k * 3 + 2];
+      }
       // smooth normals from the detailed level's triangles
-      const nr = new Float32Array(p.kept.length * 3);
-      const tri = p.lods[0];
-      const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+      const nr = f === 0 ? new Float32Array(p.kept.length * 3) : sc.nr.fill(0);
+      const tri = sc.tri;
       for (let t = 0; t < tri.length; t += 3) {
-        const ia = p.remap.get(tri[t])!, ib = p.remap.get(tri[t + 1])!, ic = p.remap.get(tri[t + 2])!;
+        const ia = tri[t], ib = tri[t + 1], ic = tri[t + 2];
         a.fromArray(kp, ia * 3);
         b.fromArray(kp, ib * 3);
         c.fromArray(kp, ic * 3);
         n.subVectors(c, b).cross(a.sub(b));
-        for (const i of [ia, ib, ic]) {
-          nr[i * 3] += n.x;
-          nr[i * 3 + 1] += n.y;
-          nr[i * 3 + 2] += n.z;
-        }
+        nr[ia * 3] += n.x;
+        nr[ia * 3 + 1] += n.y;
+        nr[ia * 3 + 2] += n.z;
+        nr[ib * 3] += n.x;
+        nr[ib * 3 + 1] += n.y;
+        nr[ib * 3 + 2] += n.z;
+        nr[ic * 3] += n.x;
+        nr[ic * 3 + 1] += n.y;
+        nr[ic * 3 + 2] += n.z;
       }
       for (let j = 0; j < p.kept.length; j++) {
         n.fromArray(nr, j * 3).normalize();

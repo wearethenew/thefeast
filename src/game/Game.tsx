@@ -13,7 +13,9 @@ import { AvatarPicker } from "./ui/AvatarPicker";
 import * as THREE from "three";
 import { preloadAvatars } from "./avatar/Avatar";
 import { WorldScene } from "./scenes/WorldScene";
-import { CORE_MODELS, CrowdBaker, useCrowdProgress } from "./crowd/CrowdBaker";
+import { CrowdBaker, WALK_AVATARS, useCrowdProgress } from "./crowd/CrowdBaker";
+
+const LOADING = "Bringing great joy to the city…";
 import { useGame } from "./store";
 import { TitleUI } from "./ui/TitleUI";
 import { VenueUI } from "./ui/VenueUI";
@@ -64,32 +66,20 @@ function Loader() {
   // once a stage is on screen it stays there: things loading in the background (the crowd's
   // people during the opening film) never bring the loader back over it
   const [shown, setShown] = useState<string | null>(null);
-  // the film also waits for the crowd's people (on a slow phone they're most of the download), so
-  // the streets are full from the first campus; never longer than a minute and a half, though
+  // (the crowd's people keep loading while the jets fly: the film only waits for them, over the
+  // last jet shot, if they're still not in when the first campus comes; see OpeningFilm)
   const crowd = useCrowdProgress();
-  const [waited, setWaited] = useState(false);
-  useEffect(() => {
-    const id = setTimeout(() => setWaited(true), 90000);
-    return () => clearTimeout(id);
-  }, []);
-  const crowdIn = crowd >= CORE_MODELS || waited;
-  useEffect(() => {
-    if (crowdIn) useGame.getState().set({ crowdIn: true });
-  }, [crowdIn]);
-  const gathering = stage === "title" && warm && !crowdIn;
+  const holding = useGame((s) => s.waitingCrowd);
   // the world's own stages also wait for its shaders to finish compiling (see WorldScene)
-  const preparing = !active && (!warm || gathering) && (stage === "title" || stage === "venue");
+  const preparing = !active && !warm && (stage === "title" || stage === "venue");
   const done = !active && !preparing;
   useEffect(() => {
     if (done && shown !== stage) setShown(stage);
   }, [done, shown, stage]);
+  if (holding && stage === "title") return <LoaderCard progress={(crowd / WALK_AVATARS.length) * 100} label={LOADING} />;
   if (done || shown === stage) return null;
-  const label = gathering
-    ? `Gathering the crowd… ${Math.round((crowd / CORE_MODELS) * 100)}%`
-    : preparing
-      ? "Lighting the city…"
-      : `Lighting the way… ${Math.round(progress)}%`;
-  return <LoaderCard progress={gathering ? (crowd / CORE_MODELS) * 100 : progress} label={label} />;
+  // one message all the way: downloading, then the city getting ready (the bar full meanwhile)
+  return <LoaderCard progress={preparing ? 100 : progress} label={LOADING} />;
 }
 
 /** Pick a female or male avatar: over the opening film and while walking (not over a form, nor seated). */
@@ -152,7 +142,7 @@ function Scene() {
 
 function Overlay() {
   const stage = useGame((s) => s.stage);
-  const filmOn = useGame((s) => s.warm && s.crowdIn);
+  const filmOn = useGame((s) => s.warm && !s.waitingCrowd);
   switch (stage) {
     case "title":
       // (not under the loading card: only once the film itself starts)

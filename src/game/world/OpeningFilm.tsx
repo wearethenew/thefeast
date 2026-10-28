@@ -6,7 +6,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { GEAR } from "./Approach";
 import { billboardFrame } from "./RoadScreen";
-import { CORE_MODELS, useCrowdProgress } from "../crowd/CrowdBaker";
+import { WALK_AVATARS, useCrowdProgress } from "../crowd/CrowdBaker";
 import { CrowdRenderer, type Agent } from "../crowd/CrowdRenderer";
 import { SetTraffic } from "./SetTraffic";
 import {
@@ -402,8 +402,9 @@ export function OpeningFilm({ world }: { world: LagosWorld }) {
   const jetShot = useRef(-1);
   const readyFor = useRef(0);
   const cut = useRef(false);
-  // the crowd can be drawn (its standing poses carry on baking in the background)
-  const ready = useCrowdProgress() >= CORE_MODELS;
+  // the campus crowds can be drawn: everyone walking (sitting and standing poses carry on baking
+  // in the background, for the Fusion Centre)
+  const ready = useCrowdProgress() >= WALK_AVATARS.length;
   const streets = useMemo(() => streetPaths(world), [world]);
   const yard = useMemo(() => yardPaths(), []);
   const agents = useRef<Agent[]>([]);
@@ -590,12 +591,15 @@ export function OpeningFilm({ world }: { world: LagosWorld }) {
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.1);
     // nothing moves until the loading screen has gone, so the jets are always seen
-    if (!useGame.getState().warm || !useGame.getState().crowdIn) return;
+    if (!useGame.getState().warm) return;
     jetClock.current += dt;
     if (ready) readyFor.current += dt;
     // one shot of each jet, then straight on to the first campus (as soon as the crowd is ready)
-    // (on a slow phone the crowd may not be ready by then: it waits a moment for it, never longer)
-    const crowdIn = (ready && readyFor.current > 0.3) || jetClock.current >= JET_TOTAL + 2.5;
+    // (on a slow phone the crowd may not be ready by then: it holds on the landing, with the
+    // loading card up, until it is; never more than a minute and a half)
+    const crowdIn = (ready && readyFor.current > 0.3) || jetClock.current >= JET_TOTAL + 90;
+    const holding = jetClock.current >= JET_TOTAL && !crowdIn && clock.current < JETS_LEN;
+    if (holding !== useGame.getState().waitingCrowd) useGame.getState().set({ waitingCrowd: holding });
     if (clock.current < JETS_LEN) clock.current = crowdIn && jetClock.current >= JET_TOTAL ? JETS_LEN : Math.min(clock.current + dt, JETS_LEN - 0.05);
     else clock.current += dt;
     const T = clock.current;

@@ -5,7 +5,7 @@ import { FOOT_Y } from "../world/compound";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { AVATARS } from "../data/avatars";
-import { CORE_MODELS, STANDING_AVATARS, getModel, useCrowdProgress, type CrowdAnim } from "./CrowdBaker";
+import { STANDING_AVATARS, WALK_AVATARS, getModel, useCrowdProgress, type CrowdAnim } from "./CrowdBaker";
 import { flameMaterial, lookMaterial, vatClock, vatDepthMaterial, vatMaterial, type Baked } from "./vat";
 
 /** One person in a crowd. The renderer reads these every frame. */
@@ -122,7 +122,8 @@ export function CrowdRenderer({ agents, capacity = 400, near = 14, shadows = tru
   }, [capacity, shadows, root]);
   useEffect(() => {
     const out = groupsRef.current;
-    if (!out || progress < CORE_MODELS) return;
+    // (from when everyone walking is in: the campus crowds; the rest join as they bake)
+    if (!out || progress < WALK_AVATARS.length) return;
     // this batch of new groups goes on its own node, compiled in the background before showing
     const batch = new THREE.Group();
     const fresh: [string, Group][] = [];

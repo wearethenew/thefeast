@@ -37,6 +37,22 @@ export const CROWD_MODELS = JOBS.length;
 /** Walk and sit for every avatar: enough to draw the crowd (standing poses join when baked). */
 export const CORE_MODELS = WALK_AVATARS.length + SIT_AVATARS.length;
 
+/**
+ * Once a texture is on the GPU the page's own copy of it (a decoded image, or the baked animation's
+ * float array) is only kept in case it has to be sent again, which it never is: let it go. Phones
+ * close a tab that holds on to all of them (hundreds of MB for the whole crowd). The picture is
+ * the same; it's the copy in memory that goes.
+ */
+function dropPageCopy(t: THREE.Texture) {
+  const img = t.image as { close?: () => void; data?: unknown; width: number; height: number } | null;
+  if (!img || t.version === 0) return;
+  // (anything that asks for its size later gets the size it had)
+  const size = { width: img.width, height: img.height };
+  if (typeof img.close === "function") img.close();
+  else if (!("data" in img)) return;
+  t.image = size;
+}
+
 export function CrowdBaker() {
   const [job, setJob] = useState(0);
   const [ready, setReady] = useState(false);
@@ -52,7 +68,10 @@ export function CrowdBaker() {
   }, []);
   useFrame(() => {
     const next = uploads.current.shift();
-    if (next) gl.initTexture(next);
+    if (next) {
+      gl.initTexture(next);
+      dropPageCopy(next);
+    }
     const J = JOBS[job];
     if (!J || !ready || !root.current || !handle.current) return;
     if (models.has(modelKey(J.i, J.anim))) return setJob(job + 1);
