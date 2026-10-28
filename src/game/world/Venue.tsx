@@ -156,26 +156,34 @@ const ROW_GAPS = [
     SEAT_LIST.filter((p) => p.y === 0).map((p) => +(p.z - 0.47).toFixed(3)),
   ),
 ].sort((a, b) => a - b);
-/** Is auditorium (ax, az) among the chairs of a seating block (not an aisle or the open floor)? */
+/** Is auditorium (ax, az) among the chairs of a seating block (you, a body's width from them)? */
+const inBlockX = (ax: number) => SEATS.blocks.some(([x0, x1]) => ax > x0 - 0.45 && ax < x1 + 0.45);
 function inRows(ax: number, az: number) {
-  if (az < SEATS.z0 - 0.6 || az > SEATS.z1 + 0.45) return false;
+  if (az < SEATS.z0 - 0.25 || az > SEATS.z1 + 0.45) return false;
   if (Math.abs(az - SEATS.cross) < SEATS.crossHalf - 0.25) return false;
-  return SEATS.blocks.some(([x0, x1]) => ax > x0 - 0.3 && ax < x1 + 0.3);
+  return inBlockX(ax);
 }
+const nearestGap = (az: number) => ROW_GAPS.reduce((a, b) => (Math.abs(b - az) < Math.abs(a - az) ? b : a));
 /**
- * Among the seats you walk along a row, in its legroom (never through the chairs): stepping into a
- * block from an aisle puts you on the nearest row's legroom, and inside it you move only along the
- * row. The aisles, the cross aisle and the open floor are free. Compound coordinates in and out.
+ * Among the seats (compound coordinates in and out, from where you were to where you'd go). The
+ * chairs are solid: from the front, the back or the cross aisle you just slide along them. You go
+ * into a row only on purpose, stepping in sideways from an aisle level with it; in a row you move
+ * along it, and walk out at either end. Nothing ever pulls you in as you pass.
  */
-function rowWalk(x: number, z: number): [number, number] {
+function rowWalk(px: number, pz: number, x: number, z: number): [number, number] {
+  const [pax, paz] = localToAud(px, pz);
   const [ax, az] = localToAud(x, z);
+  // in a row: along it (out at its ends, into the aisle)
+  if (inRows(pax, paz)) return audToLocal(ax, nearestGap(paz));
   if (!inRows(ax, az)) return [x, z];
-  // onto (or along) the nearest row's legroom: a small step toward the screen or the back keeps
-  // you on the same row, so in a row you move only along it
-  const gap = ROW_GAPS.reduce((a, b) =>
-    Math.abs(b - az) < Math.abs(a - az) ? b : a,
-  );
-  return audToLocal(ax, gap);
+  // stepping in from the side (more across than forward: walking past, even close, isn't it),
+  // from an aisle, level with a row's legroom: into that row
+  const gap = nearestGap(az);
+  if (!inBlockX(pax) && Math.abs(ax - pax) > Math.abs(az - paz) && Math.abs(az - gap) < 0.3) return audToLocal(ax, gap);
+  // otherwise the chairs are in the way: along them, as far as they let you
+  if (!inRows(ax, paz)) return audToLocal(ax, paz);
+  if (!inRows(pax, az)) return audToLocal(pax, az);
+  return [px, pz];
 }
 
 const WALL_W = 1920;
@@ -1015,7 +1023,7 @@ export function Venue({ world }: { world: LagosWorld }) {
       let nx = s.x + Math.sin(s.heading) * v * dt;
       let nz = s.z + Math.cos(s.heading) * v * dt;
       // among the seats: along the rows
-      if (inHall(nx, nz)) [nx, nz] = rowWalk(nx, nz);
+      if (inHall(nx, nz)) [nx, nz] = rowWalk(s.x, s.z, nx, nz);
       // the street outside and the compound; the walls let you through only at the two gates
       nx = THREE.MathUtils.clamp(nx, PLOT.x0 - 16, PLOT.x1 - 0.5);
       nz = THREE.MathUtils.clamp(nz, PLOT.z0 + 0.5, PLOT.z1 + 14);
