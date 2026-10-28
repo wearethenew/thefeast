@@ -100,6 +100,8 @@ type GameState = {
   panel: string | null;
   /** The world's shaders are compiled (until then the loading screen stays up). */
   warm: boolean;
+  /** The crowd's people are ready (or we've waited long enough): the film starts with them in it. */
+  crowdIn: boolean;
   /** Where you are at the Fusion Centre: things out of sight there aren't drawn. */
   zone: "street" | "yard" | "hall";
   /** The drone shot on screen during the procession (for captions). */
@@ -148,6 +150,7 @@ export const useGame = create<GameState>((set, get) => ({
   procShot: null,
   zone: "street",
   warm: false,
+  crowdIn: false,
   panel: null,
   skipFilm: 0,
   freeCam: false,
