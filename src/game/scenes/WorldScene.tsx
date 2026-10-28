@@ -15,6 +15,7 @@ import { OpeningFilm } from "../world/OpeningFilm";
 import { RoadScreen } from "../world/RoadScreen";
 import { BoothButtons } from "../world/BoothButtons";
 import { BoothBoards } from "../world/BoothBoards";
+import { primeHallLights } from "../world/hallLights";
 
 // The landing, the ride and the traffic belong to the switched-off ride across Lagos: load on demand.
 const Approach = lazy(() => import("../world/Approach").then((m) => ({ default: m.Approach })));
@@ -86,6 +87,8 @@ function Warm({ children }: { children: React.ReactNode }) {
     let live = true;
     gl.compileAsync(g, camera, scene)
       .catch(() => {})
+      // and again without the hall's lights, as everything is drawn outside the hall
+      .then(() => primeHallLights(gl, scene, camera, false))
       .then(() => {
         for (const o of parked) o.layers.set(0);
         if (live) useGame.getState().set({ warm: true });

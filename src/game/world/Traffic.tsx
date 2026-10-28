@@ -6,7 +6,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { MAJOR, type LagosWorld, type Road } from "./lagosData";
 import { resample, type Stream } from "./processionData";
-import { SetTraffic, columnCars, footprintsMeet, type Footprint, type LaneExit } from "./SetTraffic";
+import { SetTraffic, columnCars, footprintsMeet, tint, type Footprint, type LaneExit } from "./SetTraffic";
 import { Turners, useTurnOff, type SideLane } from "./Turners";
 import { CarPark, parkingExit } from "./CarPark";
 import { COMPOUND } from "./compound";
@@ -29,6 +29,10 @@ const KINDS = [
   { name: "truck", len: 8.6, w: 2.5, speed: [6, 9], share: 0.05 },
 ] as const;
 
+/** A grid cell's key: its two indices packed into one number. */
+const cellKey = (gx: number, gz: number) => (gx + 32768) * 65536 + (gz + 32768);
+const NONE: never[] = [];
+const TRUCK_COLORS = ["#e6e6e6", "#2d5aa8", "#c2410c"];
 const CAR_COLORS = ["#e9ecf0", "#1c1f26", "#8c1d1d", "#2c4a7a", "#b9bcc2", "#5a5f66", "#e8e3d5", "#20472e", "#c9b28a", "#7a2f6b"];
 
 type Lane = { road: Road; offset: number; dir: 1 | -1; brt: boolean };
@@ -517,7 +521,7 @@ export function Traffic({
   const one = useMemo(() => new THREE.Vector3(1, 1, 1), []);
   const pos = useMemo(() => new THREE.Vector3(), []);
   const col = useMemo(() => new THREE.Color(), []);
-  const grid = useMemo(() => new Map<string, Vehicle[]>(), []);
+  const grid = useMemo(() => new Map<number, Vehicle[]>(), []);
 
   useFrame((_, rawDt) => {
     if (!active) return;
@@ -531,11 +535,13 @@ export function Traffic({
     }
 
     // spatial grid for following distances
-    grid.clear();
+    // (number keys and kept arrays: nothing built from scratch every frame)
+    for (const cell of grid.values()) cell.length = 0;
     for (const v of vehicles) {
-      const k = Math.floor(v.x / 20) + "," + Math.floor(v.z / 20);
-      if (!grid.has(k)) grid.set(k, []);
-      grid.get(k)!.push(v);
+      const k = cellKey(Math.floor(v.x / 20), Math.floor(v.z / 20));
+      let cell = grid.get(k);
+      if (!cell) grid.set(k, (cell = []));
+      cell.push(v);
     }
 
     // the street columns' cars (by the fence): given way to like anyone else
@@ -552,7 +558,7 @@ export function Traffic({
       const gx = Math.floor(v.x / 20), gz = Math.floor(v.z / 20);
       for (let ix = -1; ix <= 1; ix++)
         for (let iz = -1; iz <= 1; iz++)
-          for (const o of grid.get(gx + ix + "," + (gz + iz)) ?? []) {
+          for (const o of grid.get(cellKey(gx + ix, gz + iz)) ?? NONE) {
             if (o === v) continue;
             const dx = o.x - v.x, dz = o.z - v.z;
             const ahead = dx * fx + dz * fz;
@@ -619,7 +625,7 @@ export function Traffic({
           if (left < 26 && left > 10)
             for (let ix = -1; ix <= 1; ix++)
               for (let iz = -1; iz <= 1; iz++)
-                for (const o of grid.get(Math.floor(J[0] / 20) + ix + "," + (Math.floor(J[1] / 20) + iz)) ?? []) {
+                for (const o of grid.get(cellKey(Math.floor(J[0] / 20) + ix, Math.floor(J[1] / 20) + iz)) ?? NONE) {
                   if (o === v) continue;
                   const ox = J[0] - o.x, oz = J[1] - o.z;
                   const theirs = Math.hypot(ox, oz);
@@ -706,7 +712,7 @@ export function Traffic({
         let hit = false;
         for (let ix = -1; ix <= 1 && !hit; ix++)
           for (let iz = -1; iz <= 1 && !hit; iz++)
-            for (const o of grid.get(gx2 + ix + "," + (gz2 + iz)) ?? []) {
+            for (const o of grid.get(cellKey(gx2 + ix, gz2 + iz)) ?? NONE) {
               if (o === v) continue;
               const L = halfLen(v.kind), W = halfW(v.kind), oL = halfLen(o.kind), oW = halfW(o.kind);
               // (already overlapping someone: it may only move apart from them, never closer)
@@ -740,8 +746,8 @@ export function Traffic({
       q.setFromAxisAngle(up, v.h);
       m.compose(pos.set(v.x, 0, v.z), q, one);
       im.setMatrixAt(i, m);
-      if (v.kind <= 1) im.setColorAt(i, col.set(CAR_COLORS[v.color]));
-      else if (v.kind === 7) im.setColorAt(i, col.set(["#e6e6e6", "#2d5aa8", "#c2410c"][v.color % 3]));
+      if (v.kind <= 1) im.setColorAt(i, tint(CAR_COLORS[v.color]));
+      else if (v.kind === 7) im.setColorAt(i, tint(TRUCK_COLORS[v.color % 3]));
     }
     inTheWay.length = 0;
     trafficNow.length = 0;
@@ -749,6 +755,7 @@ export function Traffic({
     meshes.current.forEach((im, k) => {
       if (!im) return;
       im.count = counters[k];
+      im.visible = counters[k] > 0;
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
     });
@@ -757,7 +764,7 @@ export function Traffic({
   return (
     <group visible={active}>
       {cones.length > 0 && <Cones at={cones} />}
-      {walks?.length ? <CarPark /> : null}
+      {walks?.length ? <CarPark active={active} /> : null}
       {streets.map((t, i) => (
         <SetTraffic
           key={i}
@@ -767,11 +774,12 @@ export function Traffic({
           lanes={t.lanes}
           cones={false}
           steady
+          active={active}
           exits={i === 0 && turn.exit && turnLane >= 0 ? [{ ...turn.exit, lane: turnLane }] : []}
         />
       ))}
       {/* the cars turning off at the T and driving away down the avenue */}
-      <Turners t={turn} others={turnerObstacles} />
+      <Turners t={turn} others={turnerObstacles} active={active} />
       {geos.map((g, k) => (
         <instancedMesh
           key={k}

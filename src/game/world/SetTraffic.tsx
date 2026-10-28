@@ -39,16 +39,17 @@ export function columnCars() {
 
 /** Do two footprints overlap, each grown by `pad` metres front and back (`side` to the sides)? */
 export function footprintsMeet(a: Footprint, b: Footprint, pad = 0, side = 0.15) {
-  const axes = [
-    [Math.sin(a.h), Math.cos(a.h)],
-    [Math.cos(a.h), -Math.sin(a.h)],
-    [Math.sin(b.h), Math.cos(b.h)],
-    [Math.cos(b.h), -Math.sin(b.h)],
-  ];
+  // (separating axes: each car's length and width directions; worked in plain numbers, as this
+  // runs for every pair of nearby cars every frame)
+  const as = Math.sin(a.h), ac = Math.cos(a.h), bs = Math.sin(b.h), bc = Math.cos(b.h);
   const dx = b.x - a.x, dz = b.z - a.z;
-  for (const [ux, uz] of axes) {
-    const r = (f: Footprint, p: number) => (f.l / 2 + p) * Math.abs(Math.sin(f.h) * ux + Math.cos(f.h) * uz) + (f.w / 2 + side) * Math.abs(Math.cos(f.h) * ux - Math.sin(f.h) * uz);
-    if (Math.abs(dx * ux + dz * uz) > r(a, pad) + r(b, 0.2)) return false;
+  const al = a.l / 2 + pad, aw = a.w / 2 + side, bl = b.l / 2 + 0.2, bw = b.w / 2 + side;
+  for (let k = 0; k < 4; k++) {
+    const ux = k === 0 ? as : k === 1 ? ac : k === 2 ? bs : bc;
+    const uz = k === 0 ? ac : k === 1 ? -as : k === 2 ? bc : -bs;
+    const ra = al * Math.abs(as * ux + ac * uz) + aw * Math.abs(ac * ux - as * uz);
+    const rb = bl * Math.abs(bs * ux + bc * uz) + bw * Math.abs(bc * ux - bs * uz);
+    if (Math.abs(dx * ux + dz * uz) > ra + rb) return false;
   }
   return true;
 }
@@ -68,6 +69,14 @@ export type LaneExit = { s: number; lead: number; want: (kind: number) => boolea
 
 /** Vehicle models and their material, built once for every road that uses them. */
 let built: { geos: THREE.BufferGeometry[]; mat: THREE.MeshStandardMaterial } | null = null;
+const tints = new Map<string, THREE.Color>();
+/** A paint colour as a THREE.Color, parsed once (setColorAt every frame without re-reading the hex). */
+export const tint = (hex: string) => {
+  let c = tints.get(hex);
+  if (!c) tints.set(hex, (c = new THREE.Color(hex)));
+  return c;
+};
+
 export const shared = () => (built ??= { geos: KINDS.map((k) => k.make()), mat: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.25 }) });
 type Lane = { off: number; dir: 1 | -1; speed: number; phase: number; cars: Car[]; vel?: number };
 
@@ -81,6 +90,7 @@ export function SetTraffic({
   steady = false,
   exit,
   exits = [],
+  active = true,
 }: {
   st: Stream;
   side: 1 | -1;
@@ -94,6 +104,8 @@ export function SetTraffic({
   exit?: LaneExit;
   /** More turnings off, each on its own lane (index into `lanes`). */
   exits?: (LaneExit & { lane: number })[];
+  /** Off screen (hidden set): hold still instead of driving unseen. */
+  active?: boolean;
 }) {
   const lanes = useMemo<Lane[]>(() => {
     const h = st.half[Math.floor(st.length / 2)];
@@ -143,6 +155,7 @@ export function SetTraffic({
   const one = useMemo(() => new THREE.Vector3(1, 1, 1), []);
   const pos = useMemo(() => new THREE.Vector3(), []);
   const col = useMemo(() => new THREE.Color(), []);
+  const scratch = useMemo(() => ({ others: [] as Footprint[], waiting: [] as Footprint[] }), []);
 
   // the cones between the walkers and the traffic
   const cones = useMemo(() => {
@@ -162,21 +175,31 @@ export function SetTraffic({
     return { x: P.x - P.dz * l.off, z: P.z + P.dx * l.off, h: Math.atan2(P.dx, P.dz) + (l.dir < 0 ? Math.PI : 0), l: KINDS[c.kind].len, w: KINDS[c.kind].w };
   };
   useFrame((_, rawDt) => {
+    if (!active) return;
     const dt = Math.min(rawDt, 0.1);
     clock.current += dt;
     const n = KINDS.map(() => 0);
+    // give way: if any of a column's cars has someone else in its way ahead (another column's
+    // car, or the city traffic) the whole column eases to a stop and waits, like a queue
+    // (this street's own lanes are laid out never to touch: only other streets' columns count)
+    const others = scratch.others;
+    others.length = 0;
+    for (const [k, cars] of columns) if (!lanes.includes(k as Lane)) for (const c of cars) others.push(c);
+    // the city traffic: the street has right of way (side-street cars wait for a gap in it), so
+    // it never queues for them; none is ever driven into, though
+    const waiting = scratch.waiting;
+    waiting.length = trafficNow.length;
+    trafficNow.forEach((t, i) => {
+      const w = (waiting[i] ??= { x: 0, z: 0, h: 0, l: 0, w: 2 });
+      w.x = t.x;
+      w.z = t.z;
+      w.h = t.h;
+      w.l = t.len;
+    });
     for (const l of lanes) {
       // stop-start Lagos traffic: the whole column eases between a crawl and a steady roll
       const wave = Math.sin(clock.current * 0.35 + l.phase);
       const want = l.speed * (steady ? 0.75 + 0.3 * wave : Math.max(0, 0.55 + 0.6 * wave));
-      // give way: if any of this column's cars has someone else in its way ahead (another column's
-      // car, or the city traffic) the whole column eases to a stop and waits, like a queue
-      const others: Footprint[] = [];
-      // (this street's own lanes are laid out never to touch: only other streets' columns count)
-      for (const [k, cars] of columns) if (!lanes.includes(k as Lane)) others.push(...cars);
-      // the city traffic: the street has right of way (side-street cars wait for a gap in it), so
-      // it never queues for them; none is ever driven into, though
-      const waiting: Footprint[] = trafficNow.map((t) => ({ x: t.x, z: t.z, h: t.h, l: t.len, w: 2 }));
       const vel = l.vel ?? want;
       const look = 1.5 + (vel * vel) / 16;
       let blocked = false;
@@ -209,7 +232,8 @@ export function SetTraffic({
           if (c.gone || c.s < 8 || c.s > st.length - 8) continue;
           const now = at(l, c, c.s);
           const next = at(l, c, (c.s + v * dt * l.dir + st.length) % st.length);
-          const hitBy = [...others, ...waiting].find((o) => Math.hypot(o.x - next.x, o.z - next.z) < 12 && footprintsMeet(next, o) && !footprintsMeet(now, o));
+          const hits = (o: Footprint) => Math.hypot(o.x - next.x, o.z - next.z) < 12 && footprintsMeet(next, o) && !footprintsMeet(now, o);
+          const hitBy = others.find(hits) ?? waiting.find(hits);
           if (hitBy) {
             // a city car standing in the street's way: it's asked to back out (the street has right of way)
             if (waiting.includes(hitBy) && inTheWay.length < 20) inTheWay.push({ x: hitBy.x, z: hitBy.z });
@@ -248,7 +272,7 @@ export function SetTraffic({
         m.compose(pos.set(P.x - P.dz * l.off, 0, P.z + P.dx * l.off), q, one);
         const i = n[c.kind]++;
         im.setMatrixAt(i, m);
-        im.setColorAt(i, col.set(KINDS[c.kind].tint ? CAR_COLORS[c.color] : "#ffffff"));
+        im.setColorAt(i, tint(KINDS[c.kind].tint ? CAR_COLORS[c.color] : "#ffffff"));
       }
       // where this column's cars are now, for everyone else to give way to
       const mine: Footprint[] = [];
@@ -258,6 +282,7 @@ export function SetTraffic({
     meshes.current.forEach((im, k) => {
       if (!im) return;
       im.count = n[k];
+      im.visible = n[k] > 0;
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
     });

@@ -65,7 +65,8 @@ import {
   localToAud,
   toWorld,
 } from "./compound";
-import { pointInPoly, type LagosWorld } from "./lagosData";
+import { type LagosWorld } from "./lagosData";
+import { aimWedge, insideHallWorld, outsideWedge, throughDoor, toLocal } from "./hallView";
 import { useBoardZoom } from "./BoothBoards";
 import { YouTubeFrame } from "../ui/youtube";
 
@@ -470,16 +471,68 @@ const rnd = (i: number) => {
  * the gates, down the yard to the side entrances, and seated in the hall and gallery. The few
  * nearest you show their names.
  */
-const HALL_WORLD = [
-  [HALL.x0, HALL.z0],
-  [HALL.x1, HALL.z0],
-  [HALL.x1, HALL.z1],
-  [HALL.x0, HALL.z1],
-].map(([x, z]) => {
-  const w = toWorld(x, z);
-  return [w.x, w.z] as [number, number];
-});
-const insideHallWorld = (x: number, z: number) => pointInPoly(x, z, HALL_WORLD);
+/**
+ * The same doorway rule for the hall's furniture, rig and fittings: from out in front, whatever
+ * inside lies wholly outside the view through the doors is skipped (and so is its shadow, which
+ * falls inside the hall too). Only things well inside the walls and under the eaves count, so
+ * the building's own walls, glass front and roof are always drawn. Inside the hall, or anywhere
+ * not in front, everything is drawn as usual.
+ */
+function HallCuller() {
+  const camera = useThree((s) => s.camera);
+  const scene = useThree((s) => s.scene);
+  const inner = useRef<THREE.Mesh[]>([]);
+  const hidden = useRef(new Set<THREE.Object3D>());
+  const lastScan = useRef(-1e9);
+  const box = useMemo(() => new THREE.Box3(), []);
+  const sphere = useMemo(() => new THREE.Sphere(), []);
+  useFrame((state) => {
+    // (re-scanned now and then: parts of the hall arrive as their textures load)
+    if (state.clock.elapsedTime - lastScan.current > 3) {
+      lastScan.current = state.clock.elapsedTime;
+      const found: THREE.Mesh[] = [];
+      scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh || (m as THREE.InstancedMesh).isInstancedMesh || (m as THREE.SkinnedMesh).isSkinnedMesh) return;
+        if (m.geometry instanceof THREE.InstancedBufferGeometry) return;
+        box.setFromObject(m, false);
+        if (box.isEmpty() || box.max.y > HALL.h - 0.5) return;
+        for (const [x, z] of [[box.min.x, box.min.z], [box.max.x, box.min.z], [box.max.x, box.max.z], [box.min.x, box.max.z]]) {
+          const [lx, lz] = toLocal(x, z);
+          if (lx < HALL.x0 + 1 || lx > HALL.x1 - 1 || lz < HALL.z0 + 1 || lz > HALL.z1 - 1.05) return;
+        }
+        found.push(m);
+      });
+      inner.current = found;
+    }
+    const cull = useGame.getState().zone !== "hall" && aimWedge(camera.position) === "wedge";
+    const was = hidden.current;
+    for (const m of inner.current) {
+      let out = false;
+      if (cull) {
+        // (a mesh can be handed a new geometry after the scan)
+        if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+        const bs = m.geometry.boundingSphere;
+        if (bs) out = outsideWedge(sphere.copy(bs).applyMatrix4(m.matrixWorld));
+      }
+      if (out && m.visible) {
+        m.visible = false;
+        was.add(m);
+      } else if (!out && was.has(m)) {
+        m.visible = true;
+        was.delete(m);
+      }
+    }
+  });
+  useEffect(
+    () => () => {
+      for (const m of hidden.current) m.visible = true;
+      hidden.current.clear();
+    },
+    [],
+  );
+  return null;
+}
 
 function VenueCrowd({
   world,
@@ -702,8 +755,11 @@ function VenueCrowd({
     // inside the hall only the hall's people are drawn; outside, everyone (the hall is full,
     // seen through its doors, and nobody has to appear as you walk in)
     const inHallNow = useGame.getState().zone === "hall";
-    for (const a of all.current)
-      a.hidden = inHallNow && !insideHallWorld(a.x, a.z);
+    const view = inHallNow ? "all" : aimWedge(state.camera.position);
+    for (const a of all.current) {
+      const inside = insideHallWorld(a.x, a.z);
+      a.hidden = inHallNow ? !inside : inside && view === "wedge" && !throughDoor(a.x, a.y ?? 0, a.z);
+    }
     // name the people walking nearest to you
     if (state.clock.elapsedTime - lastPick.current > 0.4) {
       lastPick.current = state.clock.elapsedTime;
@@ -1142,6 +1198,7 @@ export function Venue({ world }: { world: LagosWorld }) {
   return (
     <>
       <VenueCrowd world={world} where={where} />
+      <HallCuller />
       <group
         position={[COMPOUND.center[0], 0, COMPOUND.center[1]]}
         rotation-y={COMPOUND.rotation}

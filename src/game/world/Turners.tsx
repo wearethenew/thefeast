@@ -4,7 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { streamAt, type Stream } from "./processionData";
-import { KINDS, registerCars, shared, type Footprint, type LaneExit } from "./SetTraffic";
+import { KINDS, registerCars, shared, tint, type Footprint, type LaneExit } from "./SetTraffic";
 
 // The cars that turn off the through road at the T-junction into the side street: each swings
 // round the corner on a curve, then drives away down the side street's lane (away from the
@@ -54,7 +54,7 @@ export function useTurnOff(side: SideLane | null, s: number, park?: LaneExit | n
 }
 
 /** Draws and drives the turned-off cars; `others` are footprints they must never drive into. */
-export function Turners({ t, others }: { t: ReturnType<typeof useTurnOff>; others: () => Footprint[] }) {
+export function Turners({ t, others, active = true }: { t: ReturnType<typeof useTurnOff>; others: () => Footprint[]; active?: boolean }) {
   const { geos, mat } = shared();
   const meshes = useRef<(THREE.InstancedMesh | null)[]>([]);
   const m = useMemo(() => new THREE.Matrix4(), []);
@@ -66,6 +66,7 @@ export function Turners({ t, others }: { t: ReturnType<typeof useTurnOff>; other
   const col = useMemo(() => new THREE.Color(), []);
   const P = useMemo(() => ({ x: 0, z: 0, dx: 0, dz: 1, half: 4 }), []);
   useFrame((_, rawDt) => {
+    if (!active) return;
     const dt = Math.min(rawDt, 0.1);
     const side = t.side;
     const n = KINDS.map(() => 0);
@@ -116,7 +117,7 @@ export function Turners({ t, others }: { t: ReturnType<typeof useTurnOff>; other
         m.compose(pos.set(x, 0, z), q, one);
         const i = n[c.kind]++;
         im.setMatrixAt(i, m);
-        im.setColorAt(i, col.set(c.color));
+        im.setColorAt(i, tint(c.color));
       }
       // seen by the columns too: the car behind on the through road waits while one turns
       registerCars(t, t.cars.filter((c) => !c.parked).map((c) => {
@@ -132,6 +133,7 @@ export function Turners({ t, others }: { t: ReturnType<typeof useTurnOff>; other
     meshes.current.forEach((im, k) => {
       if (!im) return;
       im.count = n[k];
+      im.visible = n[k] > 0;
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
     });

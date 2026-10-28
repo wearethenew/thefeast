@@ -161,7 +161,7 @@ export function CrowdRenderer({ agents, capacity = 400, near = 14, shadows = tru
       // standing on the surface (laid just above y = 0), not sunk into it
       const y = (a.y ?? 0) + FOOT_Y;
       if (!_frustum.intersectsSphere(_sphere)) continue;
-      const g = groups.get(a.torch === false ? `${a.avatar}:${a.anim}:bare` : `${a.avatar}:${a.anim}`) ?? groups.get(`${a.avatar}:${a.anim}`);
+      const g = (a.torch === false && groups.get(groupKey(a.avatar, a.anim, true))) || groups.get(groupKey(a.avatar, a.anim, false));
       if (!g) continue;
       // full detail (and shadows) only close up, and only for so many people at once
       const lod = (a.x - cx) ** 2 + (a.z - cz) ** 2 < near2 && detailed < MAX_DETAILED ? g.lods[0] : g.lods[1];
@@ -169,11 +169,18 @@ export function CrowdRenderer({ agents, capacity = 400, near = 14, shadows = tru
       if (lod.count >= capacity) continue;
       const i = lod.count++;
       const c = Math.cos(a.h), s = Math.sin(a.h);
-      lod.matrix.array.set([c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, a.x, y, a.z, 1], i * 16);
+      // (written in place: no throwaway arrays for every person every frame)
+      const m = lod.matrix.array as Float32Array, o = i * 16;
+      m[o] = c; m[o + 1] = 0; m[o + 2] = -s; m[o + 3] = 0;
+      m[o + 4] = 0; m[o + 5] = 1; m[o + 6] = 0; m[o + 7] = 0;
+      m[o + 8] = s; m[o + 9] = 0; m[o + 10] = c; m[o + 11] = 0;
+      m[o + 12] = a.x; m[o + 13] = y; m[o + 14] = a.z; m[o + 15] = 1;
       // each person's own outfit colours and skin tone, steady for them (keyed on their phase)
-      lod.anim.array.set([a.phase, a.rate, (a.phase * 13.37) % 1, (a.phase * 7.77) % 1], i * 4);
+      const an = lod.anim.array as Float32Array, ao = i * 4;
+      an[ao] = a.phase; an[ao + 1] = a.rate; an[ao + 2] = (a.phase * 13.37) % 1; an[ao + 3] = (a.phase * 7.77) % 1;
       const t = TONES[Math.floor(((a.phase * 3.31) % 1) * TONES.length)];
-      lod.tone.array.set([t.r, t.g, t.b], i * 3);
+      const tn = lod.tone.array as Float32Array, to = i * 3;
+      tn[to] = t.r; tn[to + 1] = t.g; tn[to + 2] = t.b;
     }
     for (const g of groups.values())
       for (const l of g.lods) {
@@ -185,12 +192,28 @@ export function CrowdRenderer({ agents, capacity = 400, near = 14, shadows = tru
           l.matrix.clearUpdateRanges();
           l.matrix.addUpdateRange(0, l.count * 16);
           l.matrix.needsUpdate = true;
+          // (only the people drawn this frame go up to the GPU, not the whole buffer)
+          l.anim.clearUpdateRanges();
+          l.anim.addUpdateRange(0, l.count * 4);
           l.anim.needsUpdate = true;
+          l.tone.clearUpdateRanges();
+          l.tone.addUpdateRange(0, l.count * 3);
           l.tone.needsUpdate = true;
         }
       }
   });
   return <primitive object={root} />;
+}
+
+/** The group key for an avatar's clip ("3:walk", "3:walk:bare"), built once and reused every frame. */
+const keyTable: Record<string, string>[] = [];
+function groupKey(avatar: number, anim: string, bare: boolean) {
+  const k = bare ? anim + "!" : anim;
+  let byAvatar = keyTable[avatar];
+  if (!byAvatar) byAvatar = keyTable[avatar] = {};
+  let key = byAvatar[k];
+  if (!key) key = byAvatar[k] = bare ? `${avatar}:${anim}:bare` : `${avatar}:${anim}`;
+  return key;
 }
 
 /** Cycles per second for someone walking at `speed` m/s (the clips are recorded at about 1.25 m/s). */

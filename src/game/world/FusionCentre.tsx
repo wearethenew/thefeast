@@ -1,7 +1,7 @@
 "use client";
 
 import { RoundedBox, Text, useTexture } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { billboardArt } from "./billboardArt";
 import * as THREE from "three";
@@ -55,6 +55,7 @@ import {
 import { insideBuilding, nearestRoad, type LagosWorld } from "./lagosData";
 import { sedan, suv } from "./vehicleModels";
 import { Chairs, StageRig } from "./hallRig";
+import { hallLight, primeHallLights, showHallLights } from "./hallLights";
 import { MerchStore, RegistrationPavilion } from "./BigBooths";
 
 // The New Fusion Centre, Ogba, modelled from the architect's renders (references/fusion-centre):
@@ -275,27 +276,24 @@ export function Palm({
     frondGeo.computeVertexNormals();
     const top = curve.getPoint(1);
     // fronds spray out and upward from the crown (positive tilt), then the bend droops their tips
-    const fronds = Array.from({ length: 22 }, (_, i) => ({
-      rotY: (i / 22) * Math.PI * 2 + (i % 3) * 0.12,
-      tilt: 0.15 + (i % 4) * 0.22,
-      geo: frondGeo,
-    }));
+    // all 22 baked into one mesh (one draw, same leaves), each placed as its own frond would be
+    const place = new THREE.Matrix4(), spin = new THREE.Matrix4(), bend = new THREE.Matrix4();
+    const fronds = mergeGeometries(
+      Array.from({ length: 22 }, (_, i) => {
+        const rotY = (i / 22) * Math.PI * 2 + (i % 3) * 0.12;
+        const tilt = 0.15 + (i % 4) * 0.22;
+        place.makeTranslation(top.x, top.y, top.z).multiply(spin.makeRotationY(rotY)).multiply(bend.makeRotationX(tilt - Math.PI / 2));
+        return frondGeo.clone().applyMatrix4(place);
+      }),
+    );
+    frondGeo.dispose();
     return { trunk, fronds, top };
   }, [h, lean]);
   const mats = getPalmMats();
   return (
     <group position={[x, 0, z]} rotation-y={rot}>
       <mesh geometry={trunk} material={mats.bark} castShadow />
-      {fronds.map((f, i) => (
-        <group key={i} position={top} rotation-y={f.rotY}>
-          <mesh
-            geometry={f.geo}
-            material={mats.frond}
-            rotation-x={f.tilt - Math.PI / 2}
-            castShadow
-          />
-        </group>
-      ))}
+      <mesh geometry={fronds} material={mats.frond} castShadow />
       <mesh position={[top.x, top.y - 0.2, top.z]} material={mats.bark}>
         <sphereGeometry args={[0.38, 8, 6]} />
       </mesh>
@@ -2014,8 +2012,21 @@ const WASH = [
 
 /** The house lights: colour washes that drift through the hues, and warm spots on the pulpit. */
 function HallLights() {
-  const lit = useGame((s) => s.zone === "hall");
+  const zone = useGame((s) => s.zone);
+  const warm = useGame((s) => s.warm);
+  const lit = zone === "hall";
   const lights = useRef<(THREE.PointLight | null)[]>([]);
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  // (until the first compile is done they stay in, so it builds the hall's versions too)
+  useEffect(() => {
+    if (warm) showHallLights(lit);
+  }, [warm, lit]);
+  // whichever way you're about to go (in from the yard, out from the hall), its shaders are ready
+  useEffect(() => {
+    if (warm) primeHallLights(gl, scene, camera, zone !== "hall");
+  }, [warm, zone, gl, scene, camera]);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     WASH.forEach((w, i) => {
@@ -2028,9 +2039,19 @@ function HallLights() {
   return (
     <>
       {WASH.map((w, i) => (
-        <pointLight key={i} ref={(l) => void (lights.current[i] = l)} position={[...w.at]} intensity={0} distance={w.distance} />
+        <pointLight
+          key={i}
+          ref={(l) => {
+            lights.current[i] = l;
+            hallLight(l);
+          }}
+          position={[...w.at]}
+          intensity={0}
+          distance={w.distance}
+        />
       ))}
       <spotLight
+        ref={hallLight}
         position={[0, AUD.h - 2.5, STAGE.z1 + 4]}
         angle={0.25}
         penumbra={0.5}

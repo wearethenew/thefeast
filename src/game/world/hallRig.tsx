@@ -1,6 +1,6 @@
 "use client";
 
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -8,6 +8,8 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { AUD, LED, SIDE_SCREEN, STAGE } from "./compound";
 import { useGame } from "../store";
 import { chairLogo } from "./fcTextures";
+import { hallLight } from "./hallLights";
+import { aimWedge, outsideWedge } from "./hallView";
 
 // The main hall's furniture and show kit, after the interior renders (references/fusion-centre
 // render-03 to 08): padded stacking chairs in dark bluish-grey leather on black metal frames, and
@@ -75,17 +77,60 @@ export function Chairs({ positions }: { positions: THREE.Matrix4[] }) {
     }),
     [],
   );
-  const fill = (im: THREE.InstancedMesh | null) => {
+  const meshes = useRef<(THREE.InstancedMesh | null)[]>([]);
+  const fill = (k: number) => (im: THREE.InstancedMesh | null) => {
+    meshes.current[k] = im;
     if (!im) return;
     positions.forEach((m, i) => im.setMatrixAt(i, m));
     im.instanceMatrix.needsUpdate = true;
     im.computeBoundingSphere();
   };
+  // From out in front of the hall only the chairs in view through its doors are drawn (see
+  // hallView); everywhere else, all of them. Rewritten only when the camera moves.
+  const camera = useThree((s) => s.camera);
+  const last = useMemo(() => ({ at: new THREE.Vector3(Infinity, 0, 0), wedge: false, n: -1 }), []);
+  const radius = useMemo(() => {
+    let r = 0;
+    for (const g of Object.values(geos)) {
+      g.computeBoundingSphere();
+      r = Math.max(r, g.boundingSphere!.center.length() + g.boundingSphere!.radius);
+    }
+    return r;
+  }, [geos]);
+  const sphere = useMemo(() => new THREE.Sphere(), []);
+  const world = useMemo(() => new THREE.Matrix4(), []);
+  useFrame(() => {
+    const ims = meshes.current;
+    const im0 = ims[0];
+    if (!im0) return;
+    const wedge = useGame.getState().zone !== "hall" && aimWedge(camera.position) === "wedge";
+    if (!wedge && !last.wedge && last.n === positions.length) return;
+    if (wedge && last.wedge && camera.position.distanceToSquared(last.at) < 0.0025) return;
+    last.at.copy(camera.position);
+    last.wedge = wedge;
+    let n = 0;
+    for (const m of positions) {
+      if (wedge) {
+        world.multiplyMatrices(im0.matrixWorld, m);
+        sphere.center.setFromMatrixPosition(world);
+        sphere.radius = radius;
+        if (outsideWedge(sphere)) continue;
+      }
+      for (const im of ims) if (im) im.setMatrixAt(n, m);
+      n++;
+    }
+    last.n = n;
+    for (const im of ims) {
+      if (!im) continue;
+      im.count = n;
+      im.instanceMatrix.needsUpdate = true;
+    }
+  });
   return (
     <>
-      <instancedMesh args={[geos.cushion, mats.leather, positions.length]} receiveShadow castShadow ref={fill} />
-      <instancedMesh args={[geos.frame, mats.metal, positions.length]} ref={fill} />
-      <instancedMesh args={[geos.logo, mats.logo, positions.length]} ref={fill} />
+      <instancedMesh args={[geos.cushion, mats.leather, positions.length]} receiveShadow castShadow ref={fill(0)} />
+      <instancedMesh args={[geos.frame, mats.metal, positions.length]} ref={fill(1)} />
+      <instancedMesh args={[geos.logo, mats.logo, positions.length]} ref={fill(2)} />
     </>
   );
 }
@@ -314,7 +359,7 @@ export function StageRig() {
       ))}
       {/* front-of-house washes onto the stage (always there, lit only inside: see HallLights) */}
       {[-6, 6].map((dx) => (
-        <spotLight key={dx} position={[cx + dx, AUD.h - 2.4, STAGE.z1 + 8]} angle={0.42} penumbra={0.6} intensity={lit ? 90 : 0} distance={26} color="#ffe6c4" target-position={[cx + dx * 0.4, STAGE.h, STAGE.z1 - 2]} />
+        <spotLight key={dx} ref={hallLight} position={[cx + dx, AUD.h - 2.4, STAGE.z1 + 8]} angle={0.42} penumbra={0.6} intensity={lit ? 90 : 0} distance={26} color="#ffe6c4" target-position={[cx + dx * 0.4, STAGE.h, STAGE.z1 - 2]} />
       ))}
     </group>
   );

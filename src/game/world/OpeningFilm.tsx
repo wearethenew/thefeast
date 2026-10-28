@@ -684,7 +684,7 @@ export function OpeningFilm({ world }: { world: LagosWorld }) {
           def && (
             <Parked key={def.id} live={def === onStream}>
               <CampusSet id={def.id} st={campus.get(def.id)!} />
-              <SetTraffic st={campus.get(def.id)!} side={def.walk > 0 ? -1 : 1} seed={def.sign + def.origin[0]} />
+              <SetTraffic st={campus.get(def.id)!} side={def.walk > 0 ? -1 : 1} seed={def.sign + def.origin[0]} active={def === onStream} />
               {/* Ikeja is Ogba's own neighbourhood: no sign needed there */}
               {GROUPS.find((g) => g.id === def.id)?.road && <DirectionSign st={campus.get(def.id)!} s={def.sign} />}
               {/* its posters load on their own: never hold up the film */}

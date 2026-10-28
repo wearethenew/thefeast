@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { BAYS, CROSSING, routeIn, taken } from "./parkingLot";
 import { COMPOUND, PARKING, toWorld } from "./compound";
 import type { Stream } from "./processionData";
-import { CAR_COLORS, shared, type LaneExit } from "./SetTraffic";
+import { CAR_COLORS, shared, tint, type LaneExit } from "./SetTraffic";
 
 // The car park behind the Fusion Centre: tarmac, white bays, a sign at the entrance, the cars
 // already parked, and now and then a car leaving the avenue's traffic to turn in and park.
@@ -77,7 +77,7 @@ export function parkingExit(st: Stream, dir: 1 | -1): LaneExit | null {
   };
 }
 
-export function CarPark() {
+export function CarPark({ active = true }: { active?: boolean }) {
   const { geos, mat } = shared();
   const meshes = useRef<(THREE.InstancedMesh | null)[]>([]);
   const m = useMemo(() => new THREE.Matrix4(), []);
@@ -90,6 +90,7 @@ export function CarPark() {
   const heading = useRef(0);
 
   useFrame((_, rawDt) => {
+    if (!active) return;
     const dt = Math.min(rawDt, 0.1);
     const n = [0, 0];
     const put = (kind: number, x: number, z: number, h: number, c: string) => {
@@ -98,7 +99,7 @@ export function CarPark() {
       q.setFromAxisAngle(up, h);
       m.compose(pos.set(x, 0, z), q, one);
       im.setMatrixAt(n[kind], m);
-      im.setColorAt(n[kind]++, col.set(c));
+      im.setColorAt(n[kind]++, tint(c));
     };
     for (const p of parked) {
       const b = BAYS[p.bay];
@@ -134,6 +135,7 @@ export function CarPark() {
     meshes.current.forEach((im, k) => {
       if (!im) return;
       im.count = n[k];
+      im.visible = n[k] > 0;
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
     });

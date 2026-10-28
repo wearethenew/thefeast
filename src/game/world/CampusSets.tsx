@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { fillerMaterial } from "./City";
 import { Palm } from "./FusionCentre";
@@ -142,7 +142,10 @@ function groundTexture(base: string, specks: string[], n = 900) {
 }
 
 function Ground({ origin, base, specks }: { origin: [number, number]; base: string; specks: string[] }) {
-  const tex = useMemo(() => groundTexture(base, specks), [base, specks]);
+  // (keyed on the colours, not the array: callers pass a fresh array every render)
+  const key = specks.join();
+  const tex = useMemo(() => groundTexture(base, key.split(",")), [base, key]);
+  useEffect(() => () => tex.dispose(), [tex]);
   return (
     <mesh rotation-x={-Math.PI / 2} position={[origin[0], -0.02, origin[1]]} receiveShadow>
       <planeGeometry args={[2400, 2400]} />
