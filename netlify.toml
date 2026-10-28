@@ -2,6 +2,11 @@
   command = "npm run build"
   publish = ".next"
 
+# The mail server's name (smtp.gmail.com) and the sending address aren't secrets: the code names
+# the server as its default. Netlify's secret scan still checks the password and the Google key.
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "EMAIL_HOST,EMAIL_USER"
+
 # The 3D models, posters and map data rarely change: let browsers and phones keep them a day and
 # reuse them for a week while quietly checking for a newer copy, so repeat visits start instantly.
 [[headers]]
