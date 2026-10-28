@@ -3,7 +3,7 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { getStore } from "@netlify/blobs";
-import { appendRow, readColumn, sheetsConfigured } from "./sheets";
+import { appendRow, readColumn, readRows, sheetsConfigured } from "./sheets";
 
 // Where Feast entries go, in order of preference:
 //  1. Google Sheets (GOOGLE_SHEET_ID + service account): one tab per table, see sheets.ts.
@@ -75,6 +75,36 @@ async function saveMain(table: Table, record: Record<string, unknown>, backedUp:
   const dir = path.join(process.cwd(), ".data");
   await mkdir(dir, { recursive: true });
   await appendFile(path.join(dir, `${table}.jsonl`), JSON.stringify(record) + "\n");
+}
+
+/** Every entry in a table (from wherever entries are kept). */
+async function rowsOf(table: Table): Promise<Record<string, unknown>[]> {
+  if (sheetsConfigured()) return readRows(TABLES[table].tab);
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (url && key) {
+    const res = await fetch(`${url}/rest/v1/${table}?select=*`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    return res.ok ? ((await res.json()) as Record<string, unknown>[]) : [];
+  }
+  const backup = backupStore();
+  if (backup) {
+    const { blobs } = await backup.list({ prefix: `${table}/` });
+    return (await Promise.all(blobs.map((b) => backup.get(b.key, { type: "json" })))).filter(Boolean);
+  }
+  try {
+    const text = await readFile(path.join(process.cwd(), ".data", `${table}.jsonl`), "utf8");
+    return text.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  } catch {
+    return [];
+  }
+}
+
+/** The (latest) entry whose `field` is `value`, ignoring case and spaces; null if none. */
+export async function findOne(table: Table, field: string, value: string) {
+  const want = value.replace(/\s+/g, "").toUpperCase();
+  const rows = await rowsOf(table);
+  for (let i = rows.length - 1; i >= 0; i--) if (String(rows[i][field] ?? "").replace(/\s+/g, "").toUpperCase() === want) return rows[i];
+  return null;
 }
 
 /** All values of one field in a table (e.g. existing referral codes). */

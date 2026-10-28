@@ -77,6 +77,17 @@ export async function appendRow(tab: string, headers: string[], row: Record<stri
   await call(`/values/${encodeURIComponent(tab)}!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, { method: "POST", body: JSON.stringify({ values }) });
 }
 
+/** Every row of a tab, as { header: value }. */
+export async function readRows(tab: string): Promise<Record<string, string>[]> {
+  try {
+    const data = (await call(`/values/${encodeURIComponent(tab)}`)) as { values?: string[][] };
+    const [head = [], ...rows] = data.values ?? [];
+    return rows.map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ""])));
+  } catch {
+    return [];
+  }
+}
+
 /** Every value in one column of a tab (by header name), without the header. */
 export async function readColumn(tab: string, header: string): Promise<string[]> {
   try {

@@ -133,6 +133,10 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
   const [days, setDays] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // registered already (another visit, another phone): the ticket ID brings the torch back
+  const [returning, setReturning] = useState(false);
+  const [ticketIn, setTicketIn] = useState("");
+  const [welcomeBack, setWelcomeBack] = useState<string | null>(null);
   const [done, setDone] = useState<{ code: string; ticket?: string; qr?: string; emailed: boolean; days?: string; online?: boolean } | null>(already ? { ...already, emailed: false } : null);
   const up = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   const chip = (on: boolean) => `h-12 rounded-[2px] border px-3 text-[15px] font-semibold uppercase tracking-[0.02em] transition ${on ? "border-gold bg-gold text-black" : "border-white/20 bg-white/[0.06] text-white/85 hover:border-white/40"}`;
@@ -173,12 +177,29 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
       setBusy(false);
     }
   };
+  const findMine = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await post("/api/torch", { ticket: ticketIn });
+      setDone({ code: r.code, ticket: r.ticket, qr: r.qr, emailed: false, days: r.passDays, online: r.online });
+      setWelcomeBack(r.firstName || "");
+      register({ code: r.code, ticket: r.ticket, qr: r.qr, days: r.passDays, online: r.online, firstName: r.firstName, name: r.name, email: r.email, phone: r.phone, at: Date.now() });
+    } catch (x) {
+      setErr((x as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
-    <Shell kicker="Get your Torch" title={done ? "You've got your torch! 🔥" : "Register for The Feast 2026"} onClose={onClose}>
+    <Shell kicker="Get your Torch" title={done ? (welcomeBack !== null ? "Welcome back! 🔥" : "You've got your torch! 🔥") : returning ? "Registered already?" : "Register for The Feast 2026"} onClose={onClose}>
       {done ? (
         <div>
           <p>
-            {already
+            {welcomeBack !== null
+              ? `Here's your torch again${welcomeBack ? `, ${welcomeBack}` : ""}: it's lit, and the Main Hall is open to you.`
+              : already
               ? `You're registered${already.firstName ? `, ${already.firstName}` : ""}, and your torch is lit. The Main Hall is open to you.`
               : `Your registration for The Feast 2026: The Torch is confirmed${done.emailed ? `, and your pass is on its way to ${f.email}` : ""}. Carry your torch into the Main Hall.`}
           </p>
@@ -214,8 +235,26 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
             </button>
           )}
         </div>
+      ) : returning ? (
+        <form onSubmit={findMine} className="space-y-3">
+          <p className="text-[14px] text-white/80 sm:text-[13px]">Enter the ticket ID on your pass (it&apos;s in your confirmation email) and you&apos;ll have your torch again.</p>
+          <div>
+            <label className={label}>Ticket ID</label>
+            <input className={`${field} font-bold uppercase tracking-wider`} value={ticketIn} onChange={(e) => setTicketIn(e.target.value)} placeholder="TF26-ABCD-EFGH" autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+          </div>
+          {err && <div className="text-[13px] text-red-300">{err}</div>}
+          <button className="btn-gold w-full py-3.5 text-[15px]" disabled={busy || ticketIn.replace(/[^a-z0-9]/gi, "").length < 12}>
+            {busy ? "Finding your torch…" : "Get my torch 🔥"}
+          </button>
+          <button type="button" className="w-full py-2 text-[12px] text-white/70 underline-offset-4 hover:underline" onClick={() => (setReturning(false), setErr(""))}>
+            Not registered yet? Register instead
+          </button>
+        </form>
       ) : (
         <form onSubmit={submit} className="space-y-3">
+          <button type="button" className="w-full rounded-xl border border-gold/50 bg-gold/10 px-3 py-2.5 text-left text-[14px] font-semibold text-gold sm:text-[13px]" onClick={() => (setReturning(true), setErr(""))}>
+            Registered already? Get your torch with your ticket ID →
+          </button>
           <div className="rounded-xl border border-white/10 bg-black/25 p-3">
             <div className="eyebrow mb-1.5 text-[11px]">The Torch · Key details</div>
             {KEY_DETAILS.map((d) => (

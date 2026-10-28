@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { emailConfigured, sendEmail } from "@/server/email";
 import { column, save } from "@/server/storage";
 import { bad, clean, isEmail } from "@/server/validate";
+import { daysLabel, daysPass, pickedDays } from "@/server/days";
 
 const SITE = "thefeast.wearethenew.org";
 
@@ -24,22 +25,6 @@ async function ticketId() {
     if (!taken.has(id)) return id;
   }
 }
-
-/** The three Feast days, in order: name, short name, and the date for a one-day pass. */
-const DAYS = [
-  { id: "fri", name: "Friday", short: "Fri", date: "Fri 11 Dec" },
-  { id: "sat", name: "Saturday", short: "Sat", date: "Sat 12 Dec" },
-  { id: "sun", name: "Sunday", short: "Sun", date: "Sun 13 Dec" },
-];
-/** The onsite days picked (any of the three: a list, or "fri,sun"; "all" for all three), in order. */
-function pickedDays(v: unknown) {
-  const ids = (Array.isArray(v) ? v.map(String) : String(v ?? "").split(/[,\s-]+/)).map((d) => d.toLowerCase());
-  return DAYS.filter((d) => ids.includes("all") || ids.includes(d.id));
-}
-/** "Friday", "Friday & Sunday", "all three days". */
-const daysLabel = (d: typeof DAYS) => (d.length === 3 ? "all three days" : d.map((x) => x.name).join(" & "));
-/** What the pass says: "Sat 12 Dec", "Fri · Sun". */
-const daysPass = (d: typeof DAYS) => (d.length === 1 ? d[0].date : d.map((x) => x.short).join(" · "));
 
 const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
