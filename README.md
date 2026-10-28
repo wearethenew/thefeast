@@ -90,7 +90,7 @@ FBX2GLTF=/path/to/FBX2glTF node scripts/build-avatars.mjs
 - **Logo:** the roof and court logo is drawn in code as an approximation. Use the official The New logo file.
 - **Backend:** every booth form posts to the server and is stored in one Google Sheet, one tab per kind: Registrations, Merch, Games, Winners, Volunteers, Testimonies and Invites. Set these in `.env` / `.env.local` (or the host's env):
   - `GOOGLE_SHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`: a Google Cloud service account, with the spreadsheet shared to its email as an editor. Tabs and header rows are created automatically. Without these, rows go to Supabase (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) or, locally, to `.data/*.jsonl`.
-  - `EMAIL_USER`, `EMAIL_PASSWORD`: the Feast mailbox (thefeast@wearethenew.org) over Gmail SMTP. `EMAIL_PASSWORD` must be a Google **app password**, not the account password. `EMAIL_HOST` defaults to smtp.gmail.com. Registrations get the "The Torch Is Yours To Carry! 🔥" email with a referral code (FIRSTNAME + ME + 1123, the next number for a shared first name).
+  - `EMAIL_USER`, `EMAIL_PASSWORD`: the Feast mailbox address over Gmail SMTP. `EMAIL_PASSWORD` must be a Google **app password**, not the account password. `EMAIL_HOST` defaults to smtp.gmail.com. Registrations get the "The Torch Is Yours To Carry! 🔥" email with a referral code (FIRSTNAME + ME + 1123, the next number for a shared first name).
 - **Merch:** the range and prices in `src/game/data/merch.ts` are placeholders.
 - **Other placeholders:**
   - Lodging links go to a Booking.com search with the Feast dates; partner hotels aren't listed yet.

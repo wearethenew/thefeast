@@ -2,7 +2,7 @@ import "server-only";
 import nodemailer from "nodemailer";
 
 // Feast email. Preferred: the Feast's own Gmail / Google Workspace mailbox over SMTP:
-//   EMAIL_USER      thefeast@wearethenew.org
+//   EMAIL_USER      the Feast mailbox address
 //   EMAIL_PASSWORD  a Google *app password* for that account (Google account → Security →
 //                   2-Step Verification → App passwords), not the normal password
 //   EMAIL_HOST      optional, defaults to smtp.gmail.com (mail.google.com is the web app, not SMTP)
