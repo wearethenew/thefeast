@@ -18,13 +18,23 @@ export function showHallLights(on: boolean) {
 }
 
 /**
- * Compiles every material in the scene for the other light setup too, in the background: three
- * builds the programs synchronously inside compileAsync, so the lights can go straight back.
+ * What's in the hall but hidden while it can't be seen from where you are (see Venue's
+ * HallCuller): it's shown again as you walk in, so its shaders are made ready along with the rest.
+ */
+export const hallAsleep = new Set<THREE.Object3D>();
+
+/**
+ * Compiles every material in the scene for the other light setup too, in the background (three
+ * builds the programs synchronously inside compileAsync, so the lights, and the hall's hidden
+ * things, go straight back as they were). Walking in then never stalls on a compile.
  */
 export function primeHallLights(gl: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, on: boolean) {
   const was = [...lights].map((l) => l.visible);
   showHallLights(on);
+  const woken = [...hallAsleep].filter((o) => !o.visible);
+  for (const o of woken) o.visible = true;
   const done = gl.compileAsync(scene, camera, scene).catch(() => {});
+  for (const o of woken) o.visible = false;
   [...lights].forEach((l, i) => (l.visible = was[i]));
   return done;
 }

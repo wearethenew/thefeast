@@ -67,6 +67,7 @@ import {
 } from "./compound";
 import { type LagosWorld } from "./lagosData";
 import { aimWedge, insideHallWorld, outsideWedge, throughDoor, toLocal } from "./hallView";
+import { hallAsleep } from "./hallLights";
 import { useBoardZoom } from "./BoothBoards";
 import { YouTubeFrame } from "../ui/youtube";
 import { useTouch } from "../ui/useSmallScreen";
@@ -510,7 +511,7 @@ function HallCuller() {
   const camera = useThree((s) => s.camera);
   const scene = useThree((s) => s.scene);
   const inner = useRef<THREE.Mesh[]>([]);
-  const hidden = useRef(new Set<THREE.Object3D>());
+  const hidden = useRef(hallAsleep);
   const lastScan = useRef(-1e9);
   const box = useMemo(() => new THREE.Box3(), []);
   const sphere = useMemo(() => new THREE.Sphere(), []);
@@ -998,7 +999,6 @@ export function Venue({ world }: { world: LagosWorld }) {
       useGame.getState().set({ zone: "street" });
     };
   }, [gl]);
-  const [showWall, setShowWall] = useShowWall();
 
   useEffect(() => {
     bindKeyboard();
@@ -1109,8 +1109,8 @@ export function Venue({ world }: { world: LagosWorld }) {
       insideRef.current = inside;
       // in the hall the LED wall has the floor: the road billboard's song and video stop till you're out
       setSongQuiet(inside);
-      setShowWall(inside);
-      // walking in: something is already playing on the wall, and the background music steps aside
+      // walking in: something is already playing on the wall (the wall itself is built all along,
+      // so only its video starts here), and the background music steps aside; walking out, it stops
       if (inside && !useGame.getState().nowPlaying)
         set({
           nowPlaying: {
@@ -1118,6 +1118,7 @@ export function Venue({ world }: { world: LagosWorld }) {
             video: MINISTERS[0].videos[0].id,
           },
         });
+      if (!inside) set({ nowPlaying: null });
     }
     // drag (mouse or finger) to swing the camera around you; it eases back behind you as you walk
     const o = orbit.current;
@@ -1170,10 +1171,12 @@ export function Venue({ world }: { world: LagosWorld }) {
         HALL.x0 + 0.6,
         HALL.x1 - 0.6,
       );
+      // (just through the doors, it stays behind you, out in the doorway, rather than being pressed
+      // up against your head: it comes in after you once you're properly inside)
       wantPos.z = THREE.MathUtils.clamp(
         wantPos.z,
         HALL.z0 + 0.6,
-        HALL.z1 - 1.3,
+        s.z > HALL.z1 - 6 && !seated ? Infinity : HALL.z1 - 1.3,
       );
       wantPos.y = THREE.MathUtils.clamp(wantPos.y, 0.8, HALL.h - 1.4);
     } else wantPos.y = Math.max(0.6, wantPos.y);
@@ -1297,11 +1300,9 @@ export function Venue({ world }: { world: LagosWorld }) {
             </Html>
           )}
         </group>
-        {showWall && (
-          <group position={AUD_GROUP.position} rotation-y={AUD_GROUP.rotation}>
-            <LedWall />
-          </group>
-        )}
+        <group position={AUD_GROUP.position} rotation-y={AUD_GROUP.rotation}>
+          <LedWall />
+        </group>
       </group>
     </>
   );
@@ -1321,8 +1322,4 @@ function useAnimState(): [
       force((n) => n + 1);
     },
   ];
-}
-function useShowWall(): [boolean, (v: boolean) => void] {
-  const [v, setV] = useState(false);
-  return [v, setV];
 }
