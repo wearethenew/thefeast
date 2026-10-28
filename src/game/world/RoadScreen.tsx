@@ -4,6 +4,7 @@ import { Html } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { useGame } from "../store";
 import { PLOT, toWorld } from "./compound";
 import { ACCELERATE } from "../data/media";
 import { nearestRoad, segDist, type LagosWorld } from "./lagosData";
@@ -269,6 +270,8 @@ export function RoadScreen({ world }: { world: LagosWorld }) {
     }
   });
   const span = frame.half * 2;
+  // a page laid over the view shows through walls: from inside the hall it's out of sight, so hidden
+  const away = useGame((s) => s.zone === "hall");
   return (
     <group position={[frame.cx, 0, frame.cz]} rotation-y={frame.rot}>
       {/* gantry: two posts either side of the road and a truss across */}
@@ -313,6 +316,7 @@ export function RoadScreen({ world }: { world: LagosWorld }) {
           <Html
             key={r}
             transform
+            style={{ visibility: away ? "hidden" : "visible" }}
             position={[0, frame.cy, 0.01]}
             scale={(frame.sw / PX_W) * 40}
             zIndexRange={[3, 0]}
@@ -349,6 +353,7 @@ export function RoadScreen({ world }: { world: LagosWorld }) {
             ]}
             scale={(frame.sw / PX_W) * 40}
             zIndexRange={[4, 0]}
+            style={{ visibility: away ? "hidden" : "visible" }}
           >
             <Controls />
           </Html>
