@@ -420,8 +420,9 @@ export function Traffic({
   const turn = useTurnOff(side, park);
   const turnerObstacles = useMemo(
     // (the columns' cars, the other turners, the city traffic)
-    // (not the through road's lane they turn off and join: they keep out of its way by design)
-    () => () => [...columnCars(turn.exit?.live), ...trafficNow.map((t) => ({ x: t.x, z: t.z, h: t.h, l: t.len, w: 2 }))],
+    // (not the through road's lane they turn off: they never stop while still in it; nor the
+    // ones coming out, which keep to their own lane and corner)
+    () => () => [...columnCars(turn.exit?.live, turn.owner), ...trafficNow.map((t) => ({ x: t.x, z: t.z, h: t.h, l: t.len, w: 2 }))],
     [turn],
   );
 

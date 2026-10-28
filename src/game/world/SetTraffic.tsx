@@ -31,9 +31,9 @@ export function registerCars(key: object, cars: Footprint[]) {
   columns.set(key, cars);
 }
 /** Every column car (for the city traffic to give way to), leaving out one column if asked. */
-export function columnCars(skip?: object) {
+export function columnCars(...skip: (object | undefined)[]) {
   const out: Footprint[] = [];
-  for (const [k, cars] of columns) if (k !== skip) out.push(...cars);
+  for (const [k, cars] of columns) if (!skip.includes(k)) out.push(...cars);
   return out;
 }
 
@@ -66,8 +66,10 @@ type Car = ColumnCar;
 /**
  * A turning off the lane (into the car park): `want` is asked `lead` seconds ahead whether this car
  * may turn in (with the column's speed); at `s` it leaves the column and `take` carries it on from
- * there. The column never waits for the cars registered under `owner` (its own turners and joiners,
- * which know to keep out of its way), and writes itself to `live` every frame.
+ * there. The column never waits for the cars registered under `owner` (the ones pulling into a
+ * place in it, which move in step with that place), and doesn't queue behind the ones under
+ * `leaving` (turning off it) but never drives into them either: if one is in the way, it holds.
+ * It writes itself to `live` every frame.
  */
 export type LaneExit = {
   s: number;
@@ -75,6 +77,7 @@ export type LaneExit = {
   want: (kind: number, speed: number) => boolean;
   take: (kind: number, color: string, x: number, z: number, h: number, speed: number) => void;
   owner?: object;
+  leaving?: object;
   live?: { cars: ColumnCar[]; vel?: number; off: number; dir: 1 | -1 };
 };
 
@@ -216,7 +219,7 @@ export function SetTraffic({
       // this lane's turning, if it has one (it hands over its turners and joiners: never waited for)
       const ex = l === lanes[0] && exit ? exit : exits.find((e) => lanes[e.lane] === l);
       if (ex) ex.live = l;
-      const ignore = ex?.owner;
+      const ignore = ex?.owner, leaving = ex?.leaving;
       // stop-start Lagos traffic: the whole column eases between a crawl and a steady roll
       const wave = Math.sin(clock.current * 0.35 + l.phase);
       const want = l.speed * (steady ? 0.75 + 0.3 * wave : Math.max(0, 0.55 + 0.6 * wave));
@@ -229,7 +232,7 @@ export function SetTraffic({
         const me = at(l, c, c.s);
         const fx = Math.sin(me.h), fz = Math.cos(me.h);
         for (let k = 0; k < others.length; k++) {
-          if (owners[k] === ignore) continue;
+          if (owners[k] === ignore || owners[k] === leaving) continue;
           const o = others[k];
           const dx = o.x - me.x, dz = o.z - me.z;
           const d = Math.hypot(dx, dz);

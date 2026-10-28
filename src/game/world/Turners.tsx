@@ -12,7 +12,8 @@ import { CAR_COLORS, KINDS, registerCars, shared, tint, type ColumnCar, type Foo
 // the avenue's far lane, wait at the mouth, and pull out into the through road's line, each into a
 // place a turner left. The two never cross: the turners swing in before the joiners come out.
 
-type Turner = { kind: number; color: string; path: THREE.Curve<THREE.Vector3>; len: number; at: number; s: number; v: number; parked?: boolean };
+/** `clear`: how far round it has to go before all of it is out of the lane it left (until then it never stops) */
+type Turner = { kind: number; color: string; path: THREE.Curve<THREE.Vector3>; len: number; clear: number; at: number; s: number; v: number; parked?: boolean };
 type Joiner = {
   kind: number;
   color: number;
@@ -57,9 +58,11 @@ export function useTurnOff(j: Junction | null, park?: LaneExit | null) {
   return useMemo(() => {
     const turners: Turner[] = [];
     const joiners: Joiner[] = [];
-    // the registry key for all of them: the through road's lane never waits for its own
-    const owner = {};
-    if (!j) return { turners, joiners, exit: null, j, park: park ?? null, owner, geo: null };
+    // their registry keys: the joiners (the line never waits for them: they move in step with
+    // their place in it) and the turners (the line never queues behind them, but never drives into one)
+    const owner = {}, leaving = {};
+    const none = { turners, joiners, exit: null, j, park: park ?? null, owner, leaving, geo: null };
+    if (!j) return none;
     const P = { x: 0, z: 0, dx: 0, dz: 1, half: 4 };
     // the avenue, straight: towards the T along u, its lanes at their offsets
     streamAt(j.st, j.i0, P);
@@ -74,12 +77,13 @@ export function useTurnOff(j: Junction | null, park?: LaneExit | null) {
     // turning in: where the lane crosses the avenue's "out" lane is the corner
     const tOut = cross(q0, d, outEnd, u);
     const tIn = cross(q0, d, inStart, u);
-    if (tOut === null || tIn === null) return { turners, joiners, exit: null, j, park: park ?? null, owner, geo: null };
+    if (tOut === null || tIn === null) return none;
     const cOut = q0.clone().addScaledVector(d, tOut);
     const afterOut = cOut.clone().addScaledVector(u, -R);
     // coming out: up the "in" lane to the mouth, round the corner into the line
     const cIn = q0.clone().addScaledVector(d, tIn);
-    const mouth = cIn.clone().addScaledVector(u, -R);
+    // (waiting a little back from the corner, well clear of anything swinging in past it)
+    const mouth = cIn.clone().addScaledVector(u, -R - 3);
     const into = cIn.clone().addScaledVector(d, R);
     const leadIn = new THREE.LineCurve3(inStart, mouth);
     const pullOut = new THREE.QuadraticBezierCurve3(mouth, cIn, into);
@@ -103,10 +107,13 @@ export function useTurnOff(j: Junction | null, park?: LaneExit | null) {
       s: j.main.s + (tOut - R) * j.main.dir,
       lead: 3,
       owner,
+      leaving,
       want: (_kind, speed) => {
         // a random few, never two on top of each other; more of them when the road is slow
         const now = performance.now();
         if (now - last < 1100) return false;
+        // and only with room round the corner: the last one in well on its way down the avenue
+        if (turners.some((c) => !c.parked && c.at < c.clear + 10)) return false;
         if (Math.random() > (speed < 3 ? 0.7 : 0.4)) return false;
         last = now;
         return true;
@@ -114,13 +121,15 @@ export function useTurnOff(j: Junction | null, park?: LaneExit | null) {
       take: (kind, color, x, z, h, speed) => {
         // from where it is, round the corner and on down the "out" lane to where the avenue's straight
         const start = v3(x, z);
+        const corner = new THREE.QuadraticBezierCurve3(start, cOut, afterOut);
         const path = new THREE.CurvePath<THREE.Vector3>();
-        path.add(new THREE.QuadraticBezierCurve3(start, cOut, afterOut));
+        path.add(corner);
         path.add(new THREE.LineCurve3(afterOut, outEnd));
-        turners.push({ kind, color, path, len: path.getLength(), at: 0, s: j.i0, v: Math.max(speed, 1.5) });
+        const clear = corner.getLength() + KINDS[kind].len / 2 + 1.5;
+        turners.push({ kind, color, path, len: path.getLength(), clear, at: 0, s: j.i0, v: Math.max(speed, 1.5) });
       },
     };
-    return { turners, joiners, exit, j, park: park ?? null, owner, geo };
+    return { turners, joiners, exit, j, park: park ?? null, owner, leaving, geo };
   }, [j, park]);
 }
 
@@ -153,7 +162,7 @@ export function Turners({ t, others, active = true }: { t: ReturnType<typeof use
       im.setMatrixAt(i, m);
       im.setColorAt(i, color);
     };
-    const seen: Footprint[] = [];
+    const seen: Footprint[] = [], gone: Footprint[] = [];
     if (j && geo) {
       const obstacles = others();
       const away = Math.PI;
@@ -180,12 +189,13 @@ export function Turners({ t, others, active = true }: { t: ReturnType<typeof use
         const [px, pz, ph] = place(c.at, c.s);
         const me: Footprint = { x: nx, z: nz, h: nh, l: KINDS[c.kind].len, w: 2 };
         const was: Footprint = { ...me, x: px, z: pz, h: ph };
-        // never into anyone ahead (once round the corner: on it, it's clear of the line it left)
+        // never into anyone ahead; but never stopping while any of it is still in the lane it
+        // left (the cars behind would be held up there): until it's clear, it just keeps going
         const inWay = (o: Footprint) => {
           const dx = o.x - px, dz = o.z - pz, dd = Math.hypot(dx, dz);
           return dd < 10 && dd > 0.01 && dx * Math.sin(ph) + dz * Math.cos(ph) > 0.2 * dd && overlap(me, o) && !overlap(was, o);
         };
-        if (c.at < c.len * 0.3 || !obstacles.some(inWay)) {
+        if (c.at < c.clear || !obstacles.some(inWay)) {
           c.at = nextAt;
           c.s = nextS;
         } else c.v = 0;
@@ -198,7 +208,7 @@ export function Turners({ t, others, active = true }: { t: ReturnType<typeof use
           continue;
         }
         draw(c.kind, x, z, h, tint(c.color));
-        seen.push({ x, z, h, l: KINDS[c.kind].len, w: 2 });
+        gone.push({ x, z, h, l: KINDS[c.kind].len, w: KINDS[c.kind].w });
       }
       for (let i = t.turners.length - 1; i >= 0; i--) {
         const c = t.turners[i];
@@ -270,6 +280,7 @@ export function Turners({ t, others, active = true }: { t: ReturnType<typeof use
     }
     // seen by everyone else (the through road's own lane knows to leave them be)
     registerCars(t.owner, seen);
+    registerCars(t.leaving, gone);
     meshes.current.forEach((im, k) => {
       if (!im) return;
       im.count = n[k];
