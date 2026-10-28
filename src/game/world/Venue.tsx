@@ -1280,8 +1280,12 @@ export function Venue({ world }: { world: LagosWorld }) {
             />
           </mesh>
           {seatOffered && (
-            <Html position={[0, 1.5, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-              <div className="animate-pulse whitespace-nowrap rounded-full bg-gold px-4 py-2 text-[14px] font-extrabold text-black shadow-[0_0_28px_rgba(246,195,90,0.9)]">
+            // the one prompt for a seat, on every device: E on a computer, a tap on it anywhere
+            <Html position={[0, 1.5, 0]} center zIndexRange={[20, 0]}>
+              <button
+                className="animate-pulse whitespace-nowrap rounded-full bg-gold px-4 py-2 text-[14px] font-extrabold text-black shadow-[0_0_28px_rgba(246,195,90,0.9)]"
+                onClick={() => useGame.getState().set({ seated: true })}
+              >
                 {touch ? (
                   "Tap to sit here"
                 ) : (
@@ -1289,7 +1293,7 @@ export function Venue({ world }: { world: LagosWorld }) {
                     Press <span className="mx-1 rounded bg-black/80 px-1.5 py-0.5 text-gold">E</span> to sit here
                   </>
                 )}
-              </div>
+              </button>
             </Html>
           )}
         </group>

@@ -712,20 +712,18 @@ function PhonePicker({
 }
 
 /**
- * Phones: the hall's video starts muted (the only way it's sure to play by itself there), and is
- * turned up straight away: a phone that has been touched on the way in usually lets it. Only if
- * the phone still keeps it quiet after a few tries does "Tap for sound" show, as the fallback.
+ * The hall's video plays the moment you walk in, everywhere, with nothing to tap. Phones only let
+ * a video start by itself if it's muted, so there it starts muted and is turned up straight away;
+ * a phone that still won't allow it gets its sound with your next touch anywhere on the screen
+ * (walking or looking round is a touch), while the picture plays on meanwhile.
  */
 function HallSound() {
   const touch = useTouch();
   const inHall = useGame((s) => s.zone === "hall");
   const video = useGame((s) => s.nowPlaying?.video);
-  // per video: "trying" the first few seconds, then "on" (has sound) or "blocked" (needs a tap)
-  const [state, setState] = useState<{ video: string; is: "trying" | "on" | "blocked" } | null>(null);
   const active = touch && inHall && !!video;
   useEffect(() => {
-    if (!active || !video) return;
-    setState({ video, is: "trying" });
+    if (!active) return;
     const frame = () => document.querySelector<HTMLIFrameElement>("iframe[data-hall-video]");
     // what the player last said: muted or not, and playing (1) or not
     let muted = true;
@@ -741,39 +739,33 @@ function HallSound() {
       }
     };
     window.addEventListener("message", onMessage);
+    // on the next touch (a gesture: what phones ask for before sound), up it goes
+    const onTouch = () => {
+      if (!muted && playing === 1) return;
+      turnUp();
+    };
     let tries = 0;
     const id = setInterval(() => {
-      if (!muted && playing === 1) {
-        setState({ video, is: "on" });
-        return clearInterval(id);
-      }
+      if (!muted && playing === 1) return clearInterval(id);
       if (++tries > 8) {
-        // the phone won't have it: playing quietly rather than stopped, and the button offered
-        const f = frame();
-        for (const func of ["mute", "playVideo"])
-          f?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args: [] }), "https://www.youtube-nocookie.com");
-        setState({ video, is: "blocked" });
+        // the phone won't have it yet: playing quietly rather than stopped, until the next touch
+        if (playing !== 1)
+          for (const func of ["mute", "playVideo"])
+            frame()?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args: [] }), "https://www.youtube-nocookie.com");
         return clearInterval(id);
       }
       turnUp();
     }, 600);
+    window.addEventListener("pointerdown", onTouch);
+    window.addEventListener("touchend", onTouch);
     return () => {
       clearInterval(id);
       window.removeEventListener("message", onMessage);
+      window.removeEventListener("pointerdown", onTouch);
+      window.removeEventListener("touchend", onTouch);
     };
   }, [active, video]);
-  if (!active || state?.video !== video || state.is !== "blocked") return null;
-  return (
-    <button
-      className="btn-gold pointer-events-auto absolute left-1/2 top-24 -translate-x-1/2 animate-pulse px-5 py-2.5 text-sm shadow-lg"
-      onClick={() => {
-        turnUp();
-        setState({ video: video!, is: "on" });
-      }}
-    >
-      🔊 Tap for sound
-    </button>
-  );
+  return null;
 }
 /** Asks the hall's video to unmute, go to full volume and play. */
 function turnUp() {
@@ -863,16 +855,15 @@ export function VenueUI() {
             </button>
           </div>
 
-          {/* (a seat on a computer has its own glowing "Press E" over the chair: no second one here) */}
-          {!seated && label && spot !== "hall" && !(spot === "seat" && !touch) && (
+          {/* (a seat has its own glowing prompt over the chair, on every device: no second one here) */}
+          {!seated && label && spot !== "hall" && spot !== "seat" && (
             // big and above the avatar picker: what you can do here, and the key that does it
             <div className="absolute bottom-24 left-1/2 -translate-x-1/2 sm:bottom-[196px]">
               <button
                 className="btn-gold pointer-events-auto animate-pulse px-7 py-3.5 text-sm shadow-[0_0_30px_rgba(246,195,90,0.65)] sm:px-9 sm:py-4 sm:text-base"
                 onClick={activate}
               >
-                {/* (the seat's own words already say which key) */}
-                {spot !== "seat" && !touch && (
+                {!touch && (
                   <span className="mr-2.5 rounded-md bg-black/80 px-2 py-0.5 text-gold">E</span>
                 )}
                 {label}
