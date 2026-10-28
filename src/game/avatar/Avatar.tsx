@@ -6,13 +6,14 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "rea
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { AVATARS, animFile, type AnimName, type Sex } from "../data/avatars";
+import { withKTX2 } from "./ktx2";
 
 /** The clips every avatar loads; others (cheer, run, clap) load only for an avatar that plays them. */
 const CORE_ANIMS: AnimName[] = ["idle", "walk", "sit", "wave"];
 
 export function preloadAvatars() {
   for (const a of AVATARS) {
-    useGLTF.preload(a.file);
+    useGLTF.preload(a.file, true, true, withKTX2);
     for (const n of CORE_ANIMS) useGLTF.preload(animFile(a.sex, n));
   }
 }
@@ -75,7 +76,7 @@ export const Avatar = forwardRef<AvatarHandle, Props>(function Avatar(
   ref,
 ) {
   const def = AVATARS.find((a) => a.id === avatarId) ?? AVATARS[0];
-  const gltf = useGLTF(def.file);
+  const gltf = useGLTF(def.file, true, true, withKTX2);
   const clips = useClips(def.sex, anim);
   const groupRef = useRef<THREE.Group>(null!);
 
