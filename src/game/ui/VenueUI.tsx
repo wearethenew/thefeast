@@ -711,6 +711,32 @@ function PhonePicker({
   );
 }
 
+/**
+ * Phones: the hall's video starts muted (the only way it may play by itself there); this turns
+ * its sound on, from the tap itself. Shown in the hall until it's been tapped.
+ */
+function HallSound() {
+  const touch = useTouch();
+  const inHall = useGame((s) => s.zone === "hall");
+  const video = useGame((s) => s.nowPlaying?.video);
+  const [on, setOn] = useState<string | null>(null);
+  if (!touch || !inHall || !video || on === video) return null;
+  const turnUp = () => {
+    const f = document.querySelector<HTMLIFrameElement>("iframe[data-hall-video]");
+    const post = (func: string, args: unknown[] = []) =>
+      f?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args }), "https://www.youtube-nocookie.com");
+    post("unMute");
+    post("setVolume", [100]);
+    post("playVideo");
+    setOn(video);
+  };
+  return (
+    <button className="btn-gold pointer-events-auto absolute left-1/2 top-24 -translate-x-1/2 animate-pulse px-5 py-2.5 text-sm shadow-lg" onClick={turnUp}>
+      🔊 Tap for sound
+    </button>
+  );
+}
+
 export function VenueUI() {
   const spot = useGame((s) => s.venueSpot);
   const seated = useGame((s) => s.seated);
@@ -757,6 +783,7 @@ export function VenueUI() {
   const form = !!boothPanel || !!open;
   return (
     <div className="pointer-events-none fixed inset-0 p-3 sm:p-5">
+      {!form && <HallSound />}
       {!form && (
         <>
           <div className="flex items-start justify-between">

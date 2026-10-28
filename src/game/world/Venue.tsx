@@ -258,6 +258,9 @@ function Countdown() {
 function LedWall() {
   const now = useGame((s) => s.nowPlaying);
   const set = useGame((s) => s.set);
+  // phones only let a video play by itself if it starts muted: there it starts so (playing at
+  // once), and "Tap for sound" on screen turns it up (see HallSound)
+  const touch = useTouch();
   // the wall is drawn behind the 3D view, through a hole cut where it hangs, so you and the people
   // in front of it hide it as they should (a page over the view would cover everyone). That puts
   // the 3D view on top for the mouse too: it keeps its dragging and clicking (videos are picked
@@ -335,7 +338,8 @@ function LedWall() {
                   key={now.video}
                   width={videoW}
                   height={videoH}
-                  src={`https://www.youtube-nocookie.com/embed/${now.video}?autoplay=1&rel=0&modestbranding=1&playsinline=1${playing?.video.start ? `&start=${playing.video.start}` : ""}`}
+                  src={`https://www.youtube-nocookie.com/embed/${now.video}?autoplay=1&rel=0&modestbranding=1&playsinline=1${touch ? "&mute=1" : ""}${playing?.video.start ? `&start=${playing.video.start}` : ""}`}
+                  data-hall-video=""
                   title="The Feast 2026"
                   allow="autoplay; encrypted-media; picture-in-picture"
                   allowFullScreen
