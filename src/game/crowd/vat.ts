@@ -155,14 +155,18 @@ export function* bakeSteps(root: THREE.Object3D, handle: AvatarHandle, anim: Ani
   const anchor = flame ? base : -1;
   const count = base + (flame ? 1 : 0);
   const rows = Math.ceil(count / VAT_W);
-  const posData = new Float32Array(VAT_W * rows * frames * 4);
-  const nrmData = new Float32Array(VAT_W * rows * frames * 4);
-  const put = (data: Float32Array, frame: number, vid: number, x: number, y: number, z: number) => {
+  // (half floats: a person's points to within a millimetre or two, at half the memory, which on a
+  // phone is the difference between the whole crowd fitting or not)
+  const posData = new Uint16Array(VAT_W * rows * frames * 4);
+  const nrmData = new Uint16Array(VAT_W * rows * frames * 4);
+  const half = THREE.DataUtils.toHalfFloat;
+  const one = half(1);
+  const put = (data: Uint16Array, frame: number, vid: number, x: number, y: number, z: number) => {
     const texel = (frame * rows + Math.floor(vid / VAT_W)) * VAT_W + (vid % VAT_W);
-    data[texel * 4] = x;
-    data[texel * 4 + 1] = y;
-    data[texel * 4 + 2] = z;
-    data[texel * 4 + 3] = 1;
+    data[texel * 4] = half(x);
+    data[texel * 4 + 1] = half(y);
+    data[texel * 4 + 2] = half(z);
+    data[texel * 4 + 3] = one;
   };
 
   const frame0: Float32Array[] = [];
@@ -237,8 +241,8 @@ export function* bakeSteps(root: THREE.Object3D, handle: AvatarHandle, anim: Ani
     yield;
   }
 
-  const tex = (data: Float32Array) => {
-    const t = new THREE.DataTexture(data, VAT_W, rows * frames, THREE.RGBAFormat, THREE.FloatType);
+  const tex = (data: Uint16Array) => {
+    const t = new THREE.DataTexture(data, VAT_W, rows * frames, THREE.RGBAFormat, THREE.HalfFloatType);
     t.needsUpdate = true;
     return t;
   };

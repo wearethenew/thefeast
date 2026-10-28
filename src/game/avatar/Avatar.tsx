@@ -28,6 +28,8 @@ function useClips(sex: Sex, extra?: AnimName) {
     gltfs.forEach((g, i) => {
       const clip = g.animations[0].clone();
       clip.name = ANIMS[i];
+      // (the clips carry markers the avatars' skeletons don't have: they only ever warned)
+      clip.tracks = clip.tracks.filter((t) => !/^(Bip01_Footsteps|MotionExtractionHelper)\./.test(t.name));
       for (const track of clip.tracks) {
         // Rocketbox walk/run clips carry root motion on Bip01; pin it so movement is driven by gameplay.
         if (track.name === "Bip01.position") {
