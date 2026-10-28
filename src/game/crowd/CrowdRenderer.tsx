@@ -36,6 +36,8 @@ type LodSet = {
   anim: THREE.InstancedBufferAttribute;
   meshes: THREE.InstancedMesh[];
   count: number;
+  /** Triangles one person costs at this level. */
+  tris: number;
 };
 type Group = { lods: LodSet[] };
 
@@ -44,7 +46,7 @@ const TONES = ["#c48b62", "#a8714c", "#8d5a3b", "#7a4c33", "#6a4029", "#5c3823"]
 
 function buildGroup(b: Baked, cap: number, shadows: boolean, parent: THREE.Object3D, bare = false): Group {
   const depth = vatDepthMaterial(b);
-  const lods: LodSet[] = [0, 1].map((lod) => {
+  const lods: LodSet[] = [0, 1, 2].map((lod) => {
     const matrix = new THREE.InstancedBufferAttribute(new Float32Array(cap * 16), 16);
     const tone = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(0.6), 3);
     const anim = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4);
@@ -81,11 +83,17 @@ function buildGroup(b: Baked, cap: number, shadows: boolean, parent: THREE.Objec
       parent.add(m);
       meshes.push(m);
     }
-    return { matrix, tone, anim, meshes, count: 0 };
+    // (triangles one person costs at this level, for the frame's budget)
+    const tris = meshes.reduce((n, m) => n + (m.geometry.index ? m.geometry.index.count / 3 : 0), 0);
+    return { matrix, tone, anim, meshes, count: 0, tris };
   });
   return { lods };
 }
 
+/** The most triangles all the people in view may cost in a frame; past it, everyone else is drawn at the lightest level. */
+const BUDGET = 2_000_000;
+/** Beyond this (metres from the camera) people are drawn at the lightest level. */
+const FAR = 45;
 /** Most people drawn with the detailed mesh in one frame (keeps the GPU well within budget). */
 const MAX_DETAILED = 220;
 const _frustum = new THREE.Frustum();
@@ -156,6 +164,7 @@ export function CrowdRenderer({ agents, capacity = 400, near = 14, shadows = tru
     const cx = camera.position.x, cz = camera.position.z;
     const near2 = near * near;
     let detailed = 0;
+    let spent = 0;
     for (const a of agents.current) {
       if (a.hidden) continue;
       _sphere.center.set(a.x, (a.y ?? 0) + 0.9, a.z);
@@ -164,8 +173,13 @@ export function CrowdRenderer({ agents, capacity = 400, near = 14, shadows = tru
       if (!_frustum.intersectsSphere(_sphere)) continue;
       const g = (a.torch === false && groups.get(groupKey(a.avatar, a.anim, true))) || groups.get(groupKey(a.avatar, a.anim, false));
       if (!g) continue;
-      // full detail (and shadows) only close up, and only for so many people at once
-      const lod = (a.x - cx) ** 2 + (a.z - cz) ** 2 < near2 && detailed < MAX_DETAILED ? g.lods[0] : g.lods[1];
+      // full detail (and shadows) only close up, and only for so many people at once; the lightest
+      // far off (measured from the camera itself, so a drone's height counts too)
+      const d2 = (a.x - cx) ** 2 + (a.z - cz) ** 2;
+      let lod =
+        d2 < near2 && detailed < MAX_DETAILED ? g.lods[0] : d2 + (y - camera.position.y) ** 2 < FAR * FAR ? g.lods[1] : g.lods[2];
+      if (spent + lod.tris > BUDGET) lod = g.lods[2];
+      spent += lod.tris;
       if (lod === g.lods[0]) detailed++;
       if (lod.count >= capacity) continue;
       const i = lod.count++;

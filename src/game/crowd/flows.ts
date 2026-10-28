@@ -151,11 +151,17 @@ export function gateApproach(w: LagosWorld, probe: [number, number], mouth: [num
 }
 
 /** Fill a stretch [from, to] of a path with walkers in loose rows. */
+/**
+ * How full every crowd is, everywhere (1 = as first laid out). Half: still a packed, moving crowd,
+ * at half the people to draw, which is what lets a phone keep up.
+ */
+export const CROWD_DENSITY = 0.5;
+
 export function fill(st: Stream, from: number, to: number, opts: { seed: number; keep?: number; row?: number; lane?: number; speed?: number; maxHalf?: number; band?: [number, number] }) {
   const out: Walker[] = [];
   const row = opts.row ?? 1.25;
   const lane = opts.lane ?? 0.95;
-  const keep = opts.keep ?? 0.62;
+  const keep = (opts.keep ?? 0.62) * CROWD_DENSITY;
   const speed = opts.speed ?? 1.2;
   let k = opts.seed;
   for (let s = from; s < to; s += row) {
@@ -334,7 +340,8 @@ function nodeWorld(n: string, jitter: number, dirX: number, dirZ: number) {
   return [x - dirZ * jitter, z + dirX * jitter] as const;
 }
 
-export function makeWanderers(count: number, seed = 777): Wanderer[] {
+export function makeWanderers(all: number, seed = 777): Wanderer[] {
+  const count = Math.round(all * CROWD_DENSITY);
   const out: Wanderer[] = [];
   const keys = Object.keys(NODES).filter((k) => k !== "door");
   for (let i = 0; i < count; i++) {

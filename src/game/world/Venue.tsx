@@ -30,6 +30,7 @@ import {
   yardPaths,
   advanceWanderers,
   makeWanderers,
+  CROWD_DENSITY,
   type Walker,
 } from "../crowd/flows";
 import { MINISTERS } from "../data/ministers";
@@ -627,11 +628,11 @@ function VenueCrowd({
       }
       if (p.y > 0) {
         // (the crowd is drawn FOOT_Y up: the gallery's deck is a real height, not ground)
-        if (rnd(k) < 0.62) sit(p.x, p.z, p.y - FOOT_Y);
+        if (rnd(k) < 0.62 * CROWD_DENSITY) sit(p.x, p.z, p.y - FOOT_Y);
         continue;
       }
       // about a third of the floor starts empty: people walking in fill them during your visit
-      if (rnd(k) > 0.64) {
+      if (rnd(k) > 0.64 * CROWD_DENSITY) {
         freeSeat(p.x, p.z, p.col, p.row);
         continue;
       }

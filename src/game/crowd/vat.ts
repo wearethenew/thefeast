@@ -113,9 +113,12 @@ export function* bakeSteps(root: THREE.Object3D, handle: AvatarHandle, anim: Ani
     // near: close to the full body; far: still a person's shape and face, not a blob
     const [lod0] = MeshoptSimplifier.simplify(indices, rest, 3, Math.max(3, Math.floor((indices.length * (torch ? 0.7 : 0.7)) / 3) * 3), 0.003, ["LockBorder"]);
     const [lod1] = MeshoptSimplifier.simplify(lod0, rest, 3, Math.max(3, Math.floor((lod0.length * (torch ? 0.5 : 0.4)) / 3) * 3), 0.012, ["LockBorder"]);
+    // far off (a few pixels tall: a drone shot, the far side of the street): the figure, its
+    // colours and torch, at about a quarter of the far level's triangles
+    const [lod2] = MeshoptSimplifier.simplify(lod1, rest, 3, Math.max(3, Math.floor((lod1.length * 0.25) / 3) * 3), 0.05, ["LockBorder"]);
     const remap = new Map<number, number>();
     const keptList: number[] = [];
-    for (const i of [...lod0, ...lod1])
+    for (const i of [...lod0, ...lod1, ...lod2])
       if (!remap.has(i)) {
         remap.set(i, keptList.length);
         keptList.push(i);
@@ -148,7 +151,7 @@ export function* bakeSteps(root: THREE.Object3D, handle: AvatarHandle, anim: Ani
         kept.forEach((k, j) => color!.set([cs.getX(k), cs.getY(k), cs.getZ(k)], j * 3));
       }
     }
-    prepared.push({ part, kept, remap, lods: [lod0, lod1], total, base, uv, color });
+    prepared.push({ part, kept, remap, lods: [lod0, lod1, lod2], total, base, uv, color });
     base += kept.length;
     yield;
   }
