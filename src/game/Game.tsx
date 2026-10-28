@@ -99,9 +99,11 @@ function PickAvatar() {
     small && stage === "venue"
       ? "bottom-4 left-4"
       : stage === "title"
-        ? "bottom-28 left-1/2 -translate-x-1/2"
+        ? small
+          ? "bottom-[78px] left-1/2 -translate-x-1/2"
+          : "bottom-[92px] left-1/2 -translate-x-1/2"
         : "bottom-[100px] left-1/2 -translate-x-1/2";
-  return <AvatarPicker className={at} />;
+  return <AvatarPicker className={at} compact={small} />;
 }
 
 /** On phones a booth's form is a sheet over the whole screen (on bigger screens it's on the booth's board). */

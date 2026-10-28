@@ -40,19 +40,22 @@ export function TitleUI() {
           ⟲ Reset view
         </button>
       )}
-      <main className={`absolute inset-x-0 bottom-0 flex flex-col items-center p-5 text-center transition-opacity sm:p-8 ${panel ? "pointer-events-none opacity-0" : ""}`}>
+      <main className={`absolute inset-x-0 bottom-0 flex flex-col items-center text-center transition-opacity ${shot?.id === "fusion" ? "p-3 sm:p-5" : "p-5 sm:p-8"} ${panel ? "pointer-events-none opacity-0" : ""}`}>
         {invitedBy && (
           <div className="pointer-events-auto mb-3 rounded-full bg-gold px-4 py-2 text-xs font-extrabold text-black shadow-lg">
             🔥 {invitedBy.from} invited you, {invitedBy.friend}. Get your torch and walk in together.
           </div>
         )}
         {shot?.id === "fusion" ? (
-          // over the Fusion Centre: the booths' own buttons are the way in, so keep the screen clear
-          <div className="glass pointer-events-auto flex flex-col items-center gap-2 rounded-2xl px-5 py-3 sm:flex-row sm:gap-4">
-            <div className="text-[13px] font-semibold text-white/90">Drag to explore · tap a booth to register, pre-order merch or play a game</div>
-            <button className="btn-ghost whitespace-nowrap px-4 py-2 text-[11px]" onClick={join}>
+          // over the Fusion Centre: the booths' own buttons are the way in, so keep the screen clear:
+          // just the way through the gate, and a line of small print under it
+          <div className="flex flex-col items-center gap-2">
+            <button className="btn-gold pointer-events-auto whitespace-nowrap px-5 py-2.5 text-[12px] shadow-lg" onClick={join}>
               Enter through the gate →
             </button>
+            <div className="text-[10px] text-white/70 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] sm:text-[11px]">
+              Drag to explore · tap a booth to register, pre-order merch or play a game
+            </div>
           </div>
         ) : (
           <>

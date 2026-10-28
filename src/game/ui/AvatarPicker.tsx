@@ -24,8 +24,8 @@ function Head({ sex }: { sex: "f" | "m" }) {
   );
 }
 
-/** `className` places it (it's centred at the bottom, above whatever else sits there). */
-export function AvatarPicker({ className = "" }: { className?: string }) {
+/** `className` places it (it's centred at the bottom, above whatever else sits there); `compact` on phones. */
+export function AvatarPicker({ className = "", compact = false }: { className?: string; compact?: boolean }) {
   const avatarId = useGame((s) => s.player.avatarId);
   const update = useGame((s) => s.updatePlayer);
   const pick = (id: string) => {
@@ -37,7 +37,7 @@ export function AvatarPicker({ className = "" }: { className?: string }) {
     }
   };
   return (
-    <div className={`pointer-events-auto fixed z-20 flex gap-3 rounded-[4px] border border-white/15 bg-black/70 px-3 py-2 backdrop-blur ${className}`} role="radiogroup" aria-label="Your avatar">
+    <div className={`pointer-events-auto fixed z-20 flex rounded-[4px] border border-white/15 bg-black/70 backdrop-blur ${compact ? "gap-2 px-2 py-1.5" : "gap-3 px-3 py-2"} ${className}`} role="radiogroup" aria-label="Your avatar">
       {(["f", "m"] as const).map((sex) => {
         const id = PLAYER_AVATARS[sex];
         const on = avatarId === id;
@@ -50,10 +50,10 @@ export function AvatarPicker({ className = "" }: { className?: string }) {
             onClick={() => pick(id)}
             className={`flex flex-col items-center gap-1 transition ${on ? "" : "opacity-60 hover:opacity-100"}`}
           >
-            <span className={`block h-14 w-14 overflow-hidden rounded-full border-2 bg-black ${on ? "border-gold" : "border-white/25"}`}>
+            <span className={`block overflow-hidden rounded-full border-2 bg-black ${compact ? "h-9 w-9" : "h-14 w-14"} ${on ? "border-gold" : "border-white/25"}`}>
               <Head sex={sex} />
             </span>
-            <span className={`font-[family-name:var(--font-label)] text-[11px] font-medium uppercase tracking-[0.12em] ${on ? "text-gold" : "text-white/80"}`}>{sex === "f" ? "Female" : "Male"}</span>
+            <span className={`font-[family-name:var(--font-label)] font-medium uppercase tracking-[0.12em] ${compact ? "text-[9px]" : "text-[11px]"} ${on ? "text-gold" : "text-white/80"}`}>{sex === "f" ? "Female" : "Male"}</span>
           </button>
         );
       })}
