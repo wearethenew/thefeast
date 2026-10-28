@@ -100,12 +100,6 @@ type GameState = {
   panel: string | null;
   /** The world's shaders are compiled (until then the loading screen stays up). */
   warm: boolean;
-  /**
-   * The visitor has started the film. Phones only allow sound after a touch, so there it waits for
-   * "Tap to begin" (that tap turns the song on, and it plays from the first scene); elsewhere it's
-   * started from the outset.
-   */
-  begun: boolean;
   /** Where you are at the Fusion Centre: things out of sight there aren't drawn. */
   zone: "street" | "yard" | "hall";
   /** The drone shot on screen during the procession (for captions). */
@@ -154,7 +148,6 @@ export const useGame = create<GameState>((set, get) => ({
   procShot: null,
   zone: "street",
   warm: false,
-  begun: typeof window === "undefined" || !window.matchMedia("(pointer: coarse)").matches,
   panel: null,
   skipFilm: 0,
   freeCam: false,

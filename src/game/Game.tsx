@@ -64,23 +64,12 @@ function Loader() {
   // once a stage is on screen it stays there: things loading in the background (the crowd's
   // people during the opening film) never bring the loader back over it
   const [shown, setShown] = useState<string | null>(null);
-  const begun = useGame((s) => s.begun);
   // the world's own stages also wait for its shaders to finish compiling (see WorldScene)
   const preparing = !active && !warm && (stage === "title" || stage === "venue");
   const done = !active && !preparing;
   useEffect(() => {
     if (done && shown !== stage) setShown(stage);
   }, [done, shown, stage]);
-  // phones: the film (and its song) starts on a tap, so it plays with sound from the first scene
-  if ((done || shown === stage) && stage === "title" && !begun)
-    return (
-      <div className="pointer-events-auto fixed inset-0 z-50 flex flex-col items-center justify-center bg-royal-deep/90" onClick={() => useGame.getState().set({ begun: true })}>
-        <div className="text-xs tracking-[0.5em] text-white/70">THE FEAST 2026</div>
-        <div className="gold-text mt-2 text-5xl font-black tracking-tight">THE TORCH</div>
-        <button className="btn-gold mt-8 px-8 py-3.5 text-[15px]">Tap to begin 🔥</button>
-        <div className="mt-3 text-xs text-white/50">Sound on for the full experience</div>
-      </div>
-    );
   if (done || shown === stage) return null;
   return <LoaderCard progress={progress} label={preparing ? "Lighting the city…" : `Lighting the way… ${Math.round(progress)}%`} />;
 }
