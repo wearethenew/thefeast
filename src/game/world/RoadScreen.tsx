@@ -313,9 +313,9 @@ export function RoadScreen({ world }: { world: LagosWorld }) {
       ))}
       {/* the video and its buttons, on the face turned toward you */}
       <group ref={live}>
-        {/* (phones show the screen's title card instead: a playing video laid over the 3D view is
-            more than they can carry; the song itself plays on, from its own hidden player) */}
-        {!Q.lite && [0].map((r, i) => (
+        {/* (the lowest level shows the screen's title card instead: a playing video laid over the
+            3D view is more than those phones can carry; the song plays on, from its own player) */}
+        {Q.billboardVideo && [0].map((r, i) => (
           <Html
             key={r}
             transform

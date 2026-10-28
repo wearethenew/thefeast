@@ -44,9 +44,11 @@ const LEVELS = {
     carsWithin: Infinity,
     /** Supersampling, shadows and the glow pass. */
     lite: false,
+    /** The live video on the road billboard (otherwise its title card). */
+    billboardVideo: true,
   },
-  mid: { crowd: 0.35, farPeople: 40, peopleBudget: 700_000, cars: 0.45, carsWithin: 260, lite: true },
-  low: { crowd: 0.2, farPeople: 25, peopleBudget: 350_000, cars: 0.25, carsWithin: 160, lite: true },
+  mid: { crowd: 0.35, farPeople: 40, peopleBudget: 700_000, cars: 0.45, carsWithin: 260, lite: true, billboardVideo: true },
+  low: { crowd: 0.2, farPeople: 25, peopleBudget: 350_000, cars: 0.25, carsWithin: 160, lite: true, billboardVideo: false },
 } as const;
 
 /** This device's settings. */
