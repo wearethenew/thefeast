@@ -541,7 +541,14 @@ function HallCuller() {
         // (a mesh can be handed a new geometry after the scan)
         if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
         const bs = m.geometry.boundingSphere;
-        if (bs) out = outsideWedge(sphere.copy(bs).applyMatrix4(m.matrixWorld));
+        // (and only while it's really in there: anything that moves, a name tag, a person, may have
+        // been inside the hall when the list was made and be out in the street now)
+        if (bs) {
+          sphere.copy(bs).applyMatrix4(m.matrixWorld);
+          const [lx, lz] = toLocal(sphere.center.x, sphere.center.z);
+          const inside = lx > HALL.x0 + 1 && lx < HALL.x1 - 1 && lz > HALL.z0 + 1 && lz < HALL.z1 - 1.05;
+          out = inside && outsideWedge(sphere);
+        }
       }
       if (out && m.visible) {
         m.visible = false;
