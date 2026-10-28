@@ -4,8 +4,8 @@ import { useProgress } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer, SMAA, Vignette } from "@react-three/postprocessing";
 import { Suspense, lazy, useEffect, useState } from "react";
-import { setMusic, unlock } from "./audio";
-import { billboardUnmuted, unmuteBillboard } from "./billboardAudio";
+import { unlock } from "./audio";
+import { unmuteBillboard } from "./billboardAudio";
 import { SongPlayer } from "./ui/SongPlayer";
 import { BoothPanels } from "./ui/BoothPanels";
 import { useSmallScreen } from "./ui/useSmallScreen";
@@ -181,10 +181,9 @@ export default function Game() {
   }, []);
   useEffect(() => {
     // audio may only start after a user gesture
-    // the billboard's song is the soundtrack: unmute it with the first tap (the synth pad steps aside)
+    // the billboard's song is the only music: unmute it with the first tap
     const first = () => {
       unlock();
-      if (!billboardUnmuted()) setMusic(false);
       unmuteBillboard();
     };
     window.addEventListener("pointerdown", first);

@@ -6,7 +6,6 @@ import { input } from "../input";
 import { useGame } from "../store";
 import { MAJOR, getLagos, loadLagos, type LagosWorld } from "../world/lagosData";
 import { ACCELERATE } from "../world/Driving";
-import { setMusic } from "../audio";
 import { YouTubeFrame } from "./youtube";
 
 const PX = 0.5; // minimap pixels per metre in the pre-rendered road layer
@@ -300,11 +299,6 @@ function Passengers() {
 export function Radio() {
   const radio = useGame((s) => s.radio);
   const set = useGame((s) => s.set);
-  useEffect(() => {
-    // let the song carry: the background pad steps aside while the radio plays
-    setMusic(!radio);
-    return () => setMusic(true);
-  }, [radio]);
   if (!radio)
     return (
       <button

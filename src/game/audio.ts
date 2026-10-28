@@ -1,18 +1,16 @@
-// Sound without audio files: everything is synthesised with Web Audio (music, engine, horns,
-// city hum) and the danfo conductor speaks through the browser's speech synthesis.
+// Sound without audio files: everything is synthesised with Web Audio (engine, horns, city hum;
+// the only music is the music videos) and the danfo conductor speaks through the browser's speech synthesis.
 // Browsers only allow audio after a user gesture, so `unlock()` is called from the first click.
 
 type Engine = { osc: OscillatorNode; osc2: OscillatorNode; filter: BiquadFilterNode; gain: GainNode };
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
-let musicGain: GainNode | null = null;
 let sfxGain: GainNode | null = null;
 let engine: Engine | null = null;
 let city: GainNode | null = null;
-let musicTimer: ReturnType<typeof setInterval> | null = null;
 
-export const audioState = { music: true, sound: true, unlocked: false };
+export const audioState = { sound: true, unlocked: false };
 
 export function unlock() {
   if (typeof window === "undefined") return;
@@ -21,96 +19,18 @@ export function unlock() {
     master = ctx.createGain();
     master.gain.value = 0.8;
     master.connect(ctx.destination);
-    musicGain = ctx.createGain();
-    musicGain.gain.value = audioState.music ? 0.22 : 0;
-    musicGain.connect(master);
     sfxGain = ctx.createGain();
     sfxGain.gain.value = audioState.sound ? 0.6 : 0;
     sfxGain.connect(master);
   }
   if (ctx.state === "suspended") ctx.resume();
   audioState.unlocked = true;
-  startMusic();
-}
-
-export function setMusic(on: boolean) {
-  audioState.music = on;
-  if (musicGain && ctx) musicGain.gain.setTargetAtTime(on ? 0.22 : 0, ctx.currentTime, 0.4);
 }
 
 export function setSound(on: boolean) {
   audioState.sound = on;
   if (sfxGain && ctx) sfxGain.gain.setTargetAtTime(on ? 0.6 : 0, ctx.currentTime, 0.2);
   if (!on && typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
-}
-
-// ---------- music: a warm worship-pad progression with a gentle arpeggio ----------
-
-const CHORDS = [
-  [62, 66, 69, 74], // D
-  [59, 62, 66, 71], // Bm
-  [55, 59, 62, 67], // G
-  [57, 61, 64, 69], // A
-];
-const midi = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
-
-function pad(freq: number, t: number, dur: number) {
-  if (!ctx || !musicGain) return;
-  const o1 = ctx.createOscillator();
-  const o2 = ctx.createOscillator();
-  o1.type = "sawtooth";
-  o2.type = "triangle";
-  o1.frequency.value = freq;
-  o2.frequency.value = freq * 1.003;
-  const f = ctx.createBiquadFilter();
-  f.type = "lowpass";
-  f.frequency.value = 900;
-  f.Q.value = 0.4;
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(0.05, t + 1.2);
-  g.gain.linearRampToValueAtTime(0.04, t + dur - 1);
-  g.gain.linearRampToValueAtTime(0, t + dur + 0.6);
-  o1.connect(f);
-  o2.connect(f);
-  f.connect(g);
-  g.connect(musicGain);
-  o1.start(t);
-  o2.start(t);
-  o1.stop(t + dur + 0.8);
-  o2.stop(t + dur + 0.8);
-}
-
-function pluck(freq: number, t: number) {
-  if (!ctx || !musicGain) return;
-  const o = ctx.createOscillator();
-  o.type = "sine";
-  o.frequency.value = freq;
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(0.06, t + 0.02);
-  g.gain.exponentialRampToValueAtTime(0.0008, t + 1.4);
-  o.connect(g);
-  g.connect(musicGain);
-  o.start(t);
-  o.stop(t + 1.5);
-}
-
-function startMusic() {
-  if (!ctx || musicTimer) return;
-  let bar = 0;
-  const BAR = 4; // seconds per chord
-  const schedule = () => {
-    if (!ctx) return;
-    const t = ctx.currentTime + 0.1;
-    const chord = CHORDS[bar % CHORDS.length];
-    chord.forEach((n) => pad(midi(n - 12), t, BAR));
-    // arpeggio: eighth notes up the chord
-    for (let i = 0; i < 8; i++) pluck(midi(chord[i % 4] + (i >= 4 ? 12 : 0)), t + i * (BAR / 8));
-    bar++;
-  };
-  schedule();
-  musicTimer = setInterval(schedule, 4000);
 }
 
 // ---------- road sounds ----------

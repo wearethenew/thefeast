@@ -35,8 +35,7 @@ import {
 import { MINISTERS } from "../data/ministers";
 import { COUNTDOWN_VIDEO, FEAST_START } from "../data/media";
 import { axes, bindKeyboard } from "../input";
-import { setMusic } from "../audio";
-import { SONG_VOLUME, billboardUnmuted, setBillboardVolume, setSongQuiet } from "../billboardAudio";
+import { SONG_VOLUME, setBillboardVolume, setSongQuiet } from "../billboardAudio";
 import { useGame, type VenueSpot } from "../store";
 import {
   CANOPY,
@@ -948,7 +947,6 @@ export function Venue({ world }: { world: LagosWorld }) {
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
       el.removeEventListener("wheel", wheel);
-      if (!billboardUnmuted()) setMusic(true);
       setBillboardVolume(SONG_VOLUME);
       setSongQuiet(false);
       useGame.getState().set({ zone: "street" });
@@ -1074,7 +1072,6 @@ export function Venue({ world }: { world: LagosWorld }) {
             video: MINISTERS[0].videos[0].id,
           },
         });
-      if (!billboardUnmuted()) setMusic(!inside);
     }
     // drag (mouse or finger) to swing the camera around you; it eases back behind you as you walk
     const o = orbit.current;
