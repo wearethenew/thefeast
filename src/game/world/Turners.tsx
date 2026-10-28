@@ -4,56 +4,127 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { streamAt, type Stream } from "./processionData";
-import { KINDS, registerCars, shared, tint, type Footprint, type LaneExit } from "./SetTraffic";
+import { CAR_COLORS, KINDS, registerCars, shared, tint, type ColumnCar, type Footprint, type LaneExit } from "./SetTraffic";
 
-// The cars that turn off the through road at the T-junction into the side street: each swings
-// round the corner on a curve, then drives away down the side street's lane (away from the
-// junction: nothing comes up it into the T) until it's far off, or turns into the car park on the
-// way. They leave the through road at least a few seconds apart and all drive at the same pace,
-// so they never close up on one another.
+// The T-junction at the compound's corner, both ways. Some of the through road's cars (a random
+// few, more of them when the road is slow) turn straight off it, round the corner into the avenue's
+// second free lane (the crowd and its cones keep the fence side) and drive away; and cars come up
+// the avenue's far lane, wait at the mouth, and pull out into the through road's line, each into a
+// place a turner left. The two never cross: the turners swing in before the joiners come out.
 
-type Turner = { kind: number; color: string; curve: THREE.QuadraticBezierCurve3; len: number; at: number; s: number; parked?: boolean };
+type Turner = { kind: number; color: string; path: THREE.Curve<THREE.Vector3>; len: number; at: number; s: number; v: number; parked?: boolean };
+type Joiner = {
+  kind: number;
+  color: number;
+  /** up the avenue (on its path), then along the lead-in to the mouth (`at`), then pulling out */
+  s: number;
+  at: number;
+  /** the place in the line it's pulling into, where that place was when it set off, and how far it had to go */
+  slot?: ColumnCar;
+  s0?: number;
+  dist?: number;
+};
 
-/** Where the side street's lane runs: its path, the lane's offset, and the way away from the T. */
-export type SideLane = { st: Stream; off: number; dir: 1 | -1; from: number; to: number };
+/**
+ * The avenue and the turning lane of the through road at the T. `st` runs up the avenue towards
+ * the T; `i0` is where it's still straight, `to` far down it out of sight; `out` and `in` are the
+ * avenue lanes' offsets (turning in, coming out); `main` is the through road's lane at the T.
+ */
+export type Junction = {
+  st: Stream;
+  i0: number;
+  to: number;
+  out: number;
+  in: number;
+  main: { st: Stream; s: number; off: number; dir: 1 | -1 };
+};
 
 const SPEED = 6.5;
-const GAP_MS = 2200;
+/** How tight the corners are turned (metres from where the two lanes cross). */
+const R = 7;
+const MAX_JOINERS = 6;
 
-/** A turning off the through road into `side`, and the cars it has sent down it. */
-export function useTurnOff(side: SideLane | null, s: number, park?: LaneExit | null) {
-  return useMemo(() => {
-    const cars: Turner[] = [];
-    let last = -1e9;
-    const P = { x: 0, z: 0, dx: 0, dz: 1, half: 4 };
-    const exit: LaneExit | null = side
-      ? {
-          s,
-          lead: 3,
-          want: () => {
-            // most of that lane's cars, a couple of seconds apart (so the avenue has a steady line)
-            if (performance.now() - last < GAP_MS || Math.random() > 0.8) return false;
-            last = performance.now();
-            return true;
-          },
-          take: (kind, color, x, z, h) => {
-            // round the corner: from where it leaves the through road to a point a little way
-            // down the side street's lane, the corner itself as the curve's pull
-            const start = side.from + side.dir * 12;
-            streamAt(side.st, start, P);
-            const end = new THREE.Vector3(P.x - P.dz * side.off, 0, P.z + P.dx * side.off);
-            const a = new THREE.Vector3(x, 0, z);
-            const ahead = new THREE.Vector3(x + Math.sin(h) * 8, 0, z + Math.cos(h) * 8);
-            const curve = new THREE.QuadraticBezierCurve3(a, ahead, end);
-            cars.push({ kind, color, curve, len: curve.getLength(), at: 0, s: start });
-          },
-        }
-      : null;
-    return { cars, exit, side, park: park ?? null };
-  }, [side, s, park]);
+const v3 = (x: number, z: number) => new THREE.Vector3(x, 0, z);
+/** Where two lines (point + direction, on the ground) cross: how far along the first. */
+function cross(p: THREE.Vector3, d: THREE.Vector3, q: THREE.Vector3, e: THREE.Vector3) {
+  const den = d.x * e.z - d.z * e.x;
+  if (Math.abs(den) < 1e-6) return null;
+  return ((q.x - p.x) * e.z - (q.z - p.z) * e.x) / den;
 }
 
-/** Draws and drives the turned-off cars; `others` are footprints they must never drive into. */
+/** The turning and the joining at the T, and the cars on them. */
+export function useTurnOff(j: Junction | null, park?: LaneExit | null) {
+  return useMemo(() => {
+    const turners: Turner[] = [];
+    const joiners: Joiner[] = [];
+    // the registry key for all of them: the through road's lane never waits for its own
+    const owner = {};
+    if (!j) return { turners, joiners, exit: null, j, park: park ?? null, owner, geo: null };
+    const P = { x: 0, z: 0, dx: 0, dz: 1, half: 4 };
+    // the avenue, straight: towards the T along u, its lanes at their offsets
+    streamAt(j.st, j.i0, P);
+    const u = v3(P.dx, P.dz);
+    const lane = (off: number) => v3(P.x - P.dz * off, P.z + P.dx * off);
+    const outEnd = lane(j.out), inStart = lane(j.in);
+    // the through road's lane at the T, the way its cars drive
+    const Q = { x: 0, z: 0, dx: 0, dz: 1, half: 4 };
+    streamAt(j.main.st, j.main.s, Q);
+    const d = v3(Q.dx * j.main.dir, Q.dz * j.main.dir);
+    const q0 = v3(Q.x - Q.dz * j.main.off, Q.z + Q.dx * j.main.off);
+    // turning in: where the lane crosses the avenue's "out" lane is the corner
+    const tOut = cross(q0, d, outEnd, u);
+    const tIn = cross(q0, d, inStart, u);
+    if (tOut === null || tIn === null) return { turners, joiners, exit: null, j, park: park ?? null, owner, geo: null };
+    const cOut = q0.clone().addScaledVector(d, tOut);
+    const afterOut = cOut.clone().addScaledVector(u, -R);
+    // coming out: up the "in" lane to the mouth, round the corner into the line
+    const cIn = q0.clone().addScaledVector(d, tIn);
+    const mouth = cIn.clone().addScaledVector(u, -R);
+    const into = cIn.clone().addScaledVector(d, R);
+    const leadIn = new THREE.LineCurve3(inStart, mouth);
+    const pullOut = new THREE.QuadraticBezierCurve3(mouth, cIn, into);
+    const geo = {
+      leadIn,
+      leadLen: leadIn.getLength(),
+      pullOut,
+      pullLen: pullOut.getLength(),
+      /** where in the line a joiner ends up (through road's own measure) */
+      sJoin: j.main.s + (tIn + R) * j.main.dir,
+      u,
+    };
+    // a few already on their way up the avenue, so cars come out from the start
+    for (let k = 3; k >= 1; k--) {
+      const s = j.to + ((j.i0 - j.to) * k) / 4;
+      joiners.push({ kind: [0, 2, 3][k - 1], color: Math.floor(Math.random() * CAR_COLORS.length), s, at: 0 });
+    }
+    let last = -1e9;
+    const exit: LaneExit = {
+      // the turn starts R before the corner
+      s: j.main.s + (tOut - R) * j.main.dir,
+      lead: 3,
+      owner,
+      want: (_kind, speed) => {
+        // a random few, never two on top of each other; more of them when the road is slow
+        const now = performance.now();
+        if (now - last < 1100) return false;
+        if (Math.random() > (speed < 3 ? 0.7 : 0.4)) return false;
+        last = now;
+        return true;
+      },
+      take: (kind, color, x, z, h, speed) => {
+        // from where it is, round the corner and on down the "out" lane to where the avenue's straight
+        const start = v3(x, z);
+        const path = new THREE.CurvePath<THREE.Vector3>();
+        path.add(new THREE.QuadraticBezierCurve3(start, cOut, afterOut));
+        path.add(new THREE.LineCurve3(afterOut, outEnd));
+        turners.push({ kind, color, path, len: path.getLength(), at: 0, s: j.i0, v: Math.max(speed, 1.5) });
+      },
+    };
+    return { turners, joiners, exit, j, park: park ?? null, owner, geo };
+  }, [j, park]);
+}
+
+/** Draws and drives the cars at the T; `others` are footprints they must never drive into. */
 export function Turners({ t, others, active = true }: { t: ReturnType<typeof useTurnOff>; others: () => Footprint[]; active?: boolean }) {
   const { geos, mat } = shared();
   const meshes = useRef<(THREE.InstancedMesh | null)[]>([]);
@@ -65,71 +136,140 @@ export function Turners({ t, others, active = true }: { t: ReturnType<typeof use
   const tan = useMemo(() => new THREE.Vector3(), []);
   const col = useMemo(() => new THREE.Color(), []);
   const P = useMemo(() => ({ x: 0, z: 0, dx: 0, dz: 1, half: 4 }), []);
+  const nextJoiner = useRef(0);
+  const clock = useRef(0);
   useFrame((_, rawDt) => {
     if (!active) return;
     const dt = Math.min(rawDt, 0.1);
-    const side = t.side;
+    clock.current += dt;
+    const { j, geo } = t;
     const n = KINDS.map(() => 0);
-    if (side) {
+    const draw = (kind: number, x: number, z: number, h: number, color: THREE.Color) => {
+      const im = meshes.current[kind];
+      if (!im || n[kind] >= 40) return;
+      q.setFromAxisAngle(up, h);
+      m.compose(pos.set(x, 0, z), q, one);
+      const i = n[kind]++;
+      im.setMatrixAt(i, m);
+      im.setColorAt(i, color);
+    };
+    const seen: Footprint[] = [];
+    if (j && geo) {
       const obstacles = others();
-      for (const c of t.cars) {
+      const away = Math.PI;
+
+      // ---- turning in ----
+      for (const c of t.turners) {
         if (c.parked) continue;
-        // where it would be after this step
-        const go = SPEED * dt;
-        let x: number, z: number, h: number;
-        const place = (at: number, s: number) => {
+        const place = (at: number, s: number): [number, number, number] => {
           if (at < c.len) {
             const u = Math.min(1, at / c.len);
-            c.curve.getPointAt(u, pos);
-            c.curve.getTangentAt(u, tan);
+            c.path.getPointAt(u, pos);
+            c.path.getTangentAt(u, tan);
             return [pos.x, pos.z, Math.atan2(tan.x, tan.z)];
           }
-          streamAt(side.st, s, P);
-          return [P.x - P.dz * side.off, P.z + P.dx * side.off, Math.atan2(P.dx, P.dz) + (side.dir < 0 ? Math.PI : 0)];
+          streamAt(j.st, s, P);
+          return [P.x - P.dz * j.out, P.z + P.dx * j.out, Math.atan2(P.dx, P.dz) + away];
         };
+        // off the line at the pace the line was going, then up to speed
+        c.v = Math.min(SPEED, c.v + 1.5 * dt);
+        const go = c.v * dt;
         const nextAt = c.at + go;
-        const nextS = c.at >= c.len ? c.s + go * side.dir : c.s;
-        [x, z, h] = place(nextAt, nextS);
-        const me: Footprint = { x, z, h, l: [4.4, 4.7, 4.7, 2.5, 1.8, 8.6][c.kind], w: 2 };
-        // never into anyone: if this step would touch someone, it waits for them
+        const nextS = c.at >= c.len ? c.s - go : c.s;
+        const [nx, nz, nh] = place(nextAt, nextS);
         const [px, pz, ph] = place(c.at, c.s);
+        const me: Footprint = { x: nx, z: nz, h: nh, l: KINDS[c.kind].len, w: 2 };
         const was: Footprint = { ...me, x: px, z: pz, h: ph };
-        // (only what's ahead of it, and only if this step would newly touch it)
+        // never into anyone ahead (once round the corner: on it, it's clear of the line it left)
         const inWay = (o: Footprint) => {
-          const dx = o.x - px, dz = o.z - pz, d = Math.hypot(dx, dz);
-          return d < 10 && d > 0.01 && dx * Math.sin(ph) + dz * Math.cos(ph) > 0.2 * d && overlap(me, o) && !overlap(was, o);
+          const dx = o.x - px, dz = o.z - pz, dd = Math.hypot(dx, dz);
+          return dd < 10 && dd > 0.01 && dx * Math.sin(ph) + dz * Math.cos(ph) > 0.2 * dd && overlap(me, o) && !overlap(was, o);
         };
-        if (!obstacles.some(inWay)) {
+        if (c.at < c.len * 0.3 || !obstacles.some(inWay)) {
           c.at = nextAt;
           c.s = nextS;
-        }
-        [x, z, h] = place(c.at, c.s);
+        } else c.v = 0;
+        const [x, z, h] = place(c.at, c.s);
         // the car park on the way: in it goes, if there's a bay
         const pk = t.park;
-        if (pk && c.at >= c.len && Math.abs(c.s - pk.s) < go + 0.01 && pk.want(c.kind)) {
+        if (pk && c.at >= c.len && Math.abs(c.s - pk.s) < go + 0.01 && pk.want(c.kind, c.v)) {
           pk.take(c.kind, c.color, x, z, h, SPEED);
           c.parked = true;
           continue;
         }
-        const im = meshes.current[c.kind];
-        if (!im || n[c.kind] >= 40) continue;
-        q.setFromAxisAngle(up, h);
-        m.compose(pos.set(x, 0, z), q, one);
-        const i = n[c.kind]++;
-        im.setMatrixAt(i, m);
-        im.setColorAt(i, tint(c.color));
+        draw(c.kind, x, z, h, tint(c.color));
+        seen.push({ x, z, h, l: KINDS[c.kind].len, w: 2 });
       }
-      // seen by the columns too: the car behind on the through road waits while one turns
-      registerCars(t, t.cars.filter((c) => !c.parked).map((c) => {
-        const [x, z, h] = c.at < c.len ? (c.curve.getPointAt(Math.min(1, c.at / c.len), pos), c.curve.getTangentAt(Math.min(1, c.at / c.len), tan), [pos.x, pos.z, Math.atan2(tan.x, tan.z)]) : (streamAt(side.st, c.s, P), [P.x - P.dz * side.off, P.z + P.dx * side.off, Math.atan2(P.dx, P.dz) + (side.dir < 0 ? Math.PI : 0)]);
-        return { x, z, h, l: 4.6, w: 2 };
-      }));
-      // far down the side street (out of sight), or parked: done
-      for (let i = t.cars.length - 1; i >= 0; i--) {
-        const c = t.cars[i];
-        if (c.parked || (c.at >= c.len && (c.s - side.to) * side.dir >= 0)) t.cars.splice(i, 1);
+      for (let i = t.turners.length - 1; i >= 0; i--) {
+        const c = t.turners[i];
+        if (c.parked || (c.at >= c.len && c.s <= j.to)) t.turners.splice(i, 1);
       }
+
+      // ---- coming out ----
+      // now and then a car starts up the avenue from far off (only so many queue at once)
+      if (clock.current > nextJoiner.current && t.joiners.length < MAX_JOINERS) {
+        const lastOne = t.joiners[t.joiners.length - 1];
+        if (!lastOne || lastOne.s > j.to + 14 || lastOne.at > 0) {
+          let kind = 0;
+          for (let x = Math.random() * 0.94; kind < 4 && (x -= KINDS[kind].share) > 0; ) kind++;
+          t.joiners.push({ kind, color: Math.floor(Math.random() * CAR_COLORS.length), s: j.to, at: 0 });
+          nextJoiner.current = clock.current + 3 + Math.random() * 6;
+        }
+      }
+      const live = t.exit?.live;
+      // how far each has come (for keeping their distance in the queue)
+      const progress = (c: Joiner) => (c.at > 0 || c.s >= j.i0 ? j.i0 + c.at : c.s);
+      let ahead: Joiner | null = null;
+      for (const c of t.joiners) {
+        let x: number, z: number, h: number;
+        if (c.slot && live) {
+          // pulling out: in step with its place in the line, which carries it the rest of the way
+          const done = Math.min(1, Math.max(0, ((c.slot.s - c.s0!) * live.dir) / c.dist!));
+          geo.pullOut.getPointAt(done, pos);
+          geo.pullOut.getTangentAt(done, tan);
+          [x, z, h] = [pos.x, pos.z, Math.atan2(tan.x, tan.z)];
+          if (done >= 1) {
+            // in its place: from now on it's one of the line
+            c.slot.kind = c.kind;
+            c.slot.color = c.color;
+            c.slot.gone = c.slot.claimed = false;
+            c.at = -1;
+          }
+        } else {
+          // up the avenue, keeping its distance to the one in front, to the mouth
+          const room = ahead ? progress(ahead) - progress(c) - (KINDS[ahead.kind].len + KINDS[c.kind].len) / 2 - 3 : Infinity;
+          const go = Math.max(0, Math.min(SPEED * dt, room));
+          if (c.s < j.i0) c.s = Math.min(j.i0, c.s + go);
+          else c.at = Math.min(geo.leadLen, c.at + go);
+          if (c.s < j.i0) {
+            streamAt(j.st, c.s, P);
+            [x, z, h] = [P.x - P.dz * j.in, P.z + P.dx * j.in, Math.atan2(P.dx, P.dz)];
+          } else {
+            geo.leadIn.getPointAt(c.at / geo.leadLen, pos);
+            [x, z, h] = [pos.x, pos.z, Math.atan2(geo.u.x, geo.u.z)];
+          }
+          // at the mouth: out it goes into the next place a turner left that will reach it in step
+          if (c.at >= geo.leadLen && live && (live.vel ?? 0) > 0.5) {
+            for (const s of live.cars) {
+              if (!s.gone || s.claimed || KINDS[s.kind].len < KINDS[c.kind].len) continue;
+              const dist = (geo.sJoin - s.s) * live.dir;
+              if (dist < geo.pullLen * 0.8 || dist > geo.pullLen * 2.2) continue;
+              s.claimed = true;
+              c.slot = s;
+              c.s0 = s.s;
+              c.dist = dist;
+              break;
+            }
+          }
+        }
+        draw(c.kind, x, z, h, tint(KINDS[c.kind].tint ? CAR_COLORS[c.color] : "#ffffff"));
+        seen.push({ x, z, h, l: KINDS[c.kind].len, w: 2 });
+        ahead = c;
+      }
+      for (let i = t.joiners.length - 1; i >= 0; i--) if (t.joiners[i].at < 0) t.joiners.splice(i, 1);
     }
+    // seen by everyone else (the through road's own lane knows to leave them be)
+    registerCars(t.owner, seen);
     meshes.current.forEach((im, k) => {
       if (!im) return;
       im.count = n[k];

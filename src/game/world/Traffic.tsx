@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { MAJOR, type LagosWorld, type Road } from "./lagosData";
 import { resample, type Stream } from "./processionData";
 import { SetTraffic, columnCars, footprintsMeet, tint, type Footprint, type LaneExit } from "./SetTraffic";
-import { Turners, useTurnOff, type SideLane } from "./Turners";
+import { Turners, useTurnOff, type Junction } from "./Turners";
 import { CarPark, parkingExit } from "./CarPark";
 import { COMPOUND } from "./compound";
 import type { CarState } from "./Driving";
@@ -294,7 +294,7 @@ export function Traffic({
 }) {
   const camera = useThree((s) => s.camera);
   const RADIUS = radius;
-  const { lanes, segs, ends, cones, streets, side, turnAt, turnLane, park } = useMemo(() => {
+  const { lanes, segs, ends, cones, streets, side, turnLane, park, onColumns } = useMemo(() => {
     const roads = world.roads.filter((r) => (MAJOR.has(r.type) || (walks && MINOR.has(r.type))) && r.pts.length > 1);
     const { out: shared, cones, walked } = sharedRoads(roads, walks ?? [], COMPOUND.center);
     // the streets by the fence have their own steady columns of cars (see SetTraffic)
@@ -305,8 +305,7 @@ export function Traffic({
     const all = sharedStreets(shared, walked);
     const through = all.filter((t) => !t.turned);
     const stem = all.find((t) => t.turned) ?? null;
-    let side: SideLane | null = null;
-    let turnAt = 0;
+    let side: Junction | null = null;
     let turnLane = -1;
     let park: LaneExit | null = null;
     const streets = through.map((t) => ({
@@ -350,10 +349,28 @@ export function Traffic({
           const toward = lx * ux + lz * uz;
           if (toward > best) [best, turnLane] = [toward, i];
         });
-        turnAt = sT;
-        // down the avenue in its lane by the fence (the one that turns into the car park), from
-        // the T to well out of sight
-        side = { st: stem.st, off: -stem.lane, dir: -1, from: iT - 6, to: Math.max(0, iT - 420) };
+        // the avenue's free part: the crowd keeps to the fence side of its cones (which side, from
+        // the cones themselves), the cars have the rest, three lanes across. Turning in, cars take
+        // the second of them; coming out to join the through road, the far one.
+        const i0 = iT - 28;
+        let fence = -1;
+        let closest = Infinity;
+        for (const [x, z] of cones) {
+          const ddx = x - stem.st.x[i0], ddz = z - stem.st.z[i0];
+          const d = Math.hypot(ddx, ddz);
+          if (d < closest) [closest, fence] = [d, -stem.st.dz[i0] * ddx + stem.st.dx[i0] * ddz > 0 ? 1 : -1];
+        }
+        const half = stem.st.half[i0];
+        const from = -(LANE_W - 0.1) + 0.3, w = (half - 0.3 - from) / 3;
+        const across = (k: number) => -fence * (from + w * (k + 0.5));
+        side = {
+          st: stem.st,
+          i0,
+          to: Math.max(0, iT - 420),
+          out: across(1),
+          in: across(2),
+          main: { st: main.st, s: sT, off: main.lanes[turnLane].off, dir: main.lanes[turnLane].dir },
+        };
         park = parkingExit(stem.st, stem.dir);
       }
     }
@@ -397,14 +414,15 @@ export function Traffic({
         ends.get(k)!.push({ lane, atStart });
       }
     }
-    return { lanes, segs, ends, key, cones, streets, side, turnAt, turnLane, park };
+    return { lanes, segs, ends, key, cones, streets, side, turnLane, park, onColumns };
   }, [world, walks, radius]);
   // the T-junction's turning: the through road's cars that take it, and what they give way to
-  const turn = useTurnOff(side, turnAt, park);
+  const turn = useTurnOff(side, park);
   const turnerObstacles = useMemo(
     // (the columns' cars, the other turners, the city traffic)
-    () => () => [...columnCars(), ...trafficNow.map((t) => ({ x: t.x, z: t.z, h: t.h, l: t.len, w: 2 }))],
-    [],
+    // (not the through road's lane they turn off and join: they keep out of its way by design)
+    () => () => [...columnCars(turn.exit?.live), ...trafficNow.map((t) => ({ x: t.x, z: t.z, h: t.h, l: t.len, w: 2 }))],
+    [turn],
   );
 
   const geos = useMemo(() => [sedan(), suv(), danfo(), brtBus(), molue(), keke(), okada(), truck()], []);
@@ -434,6 +452,8 @@ export function Traffic({
       const a = s.lane.road.pts[s.seg], b = s.lane.road.pts[s.seg + 1];
       const px = a[0] + (b[0] - a[0]) * t, pz = a[1] + (b[1] - a[1]) * t;
       if (others.some((o) => o !== v && Math.hypot(o.x - px, o.z - pz) < 14)) continue;
+      // nor on (or at the mouth of) the streets with their own columns: it would stand in their way
+      if (onColumns(px, pz)) continue;
       // never pop into view
       if (hidden && seen(px, pz)) continue;
       v.lane = s.lane;
@@ -775,7 +795,7 @@ export function Traffic({
           cones={false}
           steady
           active={active}
-          exits={i === 0 && turn.exit && turnLane >= 0 ? [{ ...turn.exit, lane: turnLane }] : []}
+          exits={i === 0 && turn.exit && turnLane >= 0 ? [Object.assign(turn.exit, { lane: turnLane })] : []}
         />
       ))}
       {/* the cars turning off at the T and driving away down the avenue */}

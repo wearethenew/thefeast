@@ -30,10 +30,10 @@ const columns = new Map<object, Footprint[]>();
 export function registerCars(key: object, cars: Footprint[]) {
   columns.set(key, cars);
 }
-/** Every column car (for the city traffic to give way to). */
-export function columnCars() {
+/** Every column car (for the city traffic to give way to), leaving out one column if asked. */
+export function columnCars(skip?: object) {
   const out: Footprint[] = [];
-  for (const cars of columns.values()) out.push(...cars);
+  for (const [k, cars] of columns) if (k !== skip) out.push(...cars);
   return out;
 }
 
@@ -60,12 +60,23 @@ const rnd = (i: number) => {
   return x - Math.floor(x);
 };
 
-type Car = { kind: number; s: number; color: number; turning?: boolean; gone?: boolean };
+/** A car in a column: `gone` while it's off the column (turned off), its place kept; `claimed` while a car joining is pulling into that place. */
+export type ColumnCar = { kind: number; s: number; color: number; turning?: boolean; gone?: boolean; claimed?: boolean };
+type Car = ColumnCar;
 /**
  * A turning off the lane (into the car park): `want` is asked `lead` seconds ahead whether this car
- * may turn in; at `s` it leaves the column and `take` carries it on from there.
+ * may turn in (with the column's speed); at `s` it leaves the column and `take` carries it on from
+ * there. The column never waits for the cars registered under `owner` (its own turners and joiners,
+ * which know to keep out of its way), and writes itself to `live` every frame.
  */
-export type LaneExit = { s: number; lead: number; want: (kind: number) => boolean; take: (kind: number, color: string, x: number, z: number, h: number, speed: number) => void };
+export type LaneExit = {
+  s: number;
+  lead: number;
+  want: (kind: number, speed: number) => boolean;
+  take: (kind: number, color: string, x: number, z: number, h: number, speed: number) => void;
+  owner?: object;
+  live?: { cars: ColumnCar[]; vel?: number; off: number; dir: 1 | -1 };
+};
 
 /** Vehicle models and their material, built once for every road that uses them. */
 let built: { geos: THREE.BufferGeometry[]; mat: THREE.MeshStandardMaterial } | null = null;
@@ -155,7 +166,7 @@ export function SetTraffic({
   const one = useMemo(() => new THREE.Vector3(1, 1, 1), []);
   const pos = useMemo(() => new THREE.Vector3(), []);
   const col = useMemo(() => new THREE.Color(), []);
-  const scratch = useMemo(() => ({ others: [] as Footprint[], waiting: [] as Footprint[] }), []);
+  const scratch = useMemo(() => ({ others: [] as Footprint[], owners: [] as object[], waiting: [] as Footprint[] }), []);
 
   // the cones between the walkers and the traffic
   const cones = useMemo(() => {
@@ -182,9 +193,14 @@ export function SetTraffic({
     // give way: if any of a column's cars has someone else in its way ahead (another column's
     // car, or the city traffic) the whole column eases to a stop and waits, like a queue
     // (this street's own lanes are laid out never to touch: only other streets' columns count)
-    const others = scratch.others;
-    others.length = 0;
-    for (const [k, cars] of columns) if (!lanes.includes(k as Lane)) for (const c of cars) others.push(c);
+    const others = scratch.others, owners = scratch.owners;
+    others.length = owners.length = 0;
+    for (const [k, cars] of columns)
+      if (!lanes.includes(k as Lane))
+        for (const c of cars) {
+          others.push(c);
+          owners.push(k);
+        }
     // the city traffic: the street has right of way (side-street cars wait for a gap in it), so
     // it never queues for them; none is ever driven into, though
     const waiting = scratch.waiting;
@@ -197,6 +213,10 @@ export function SetTraffic({
       w.l = t.len;
     });
     for (const l of lanes) {
+      // this lane's turning, if it has one (it hands over its turners and joiners: never waited for)
+      const ex = l === lanes[0] && exit ? exit : exits.find((e) => lanes[e.lane] === l);
+      if (ex) ex.live = l;
+      const ignore = ex?.owner;
       // stop-start Lagos traffic: the whole column eases between a crawl and a steady roll
       const wave = Math.sin(clock.current * 0.35 + l.phase);
       const want = l.speed * (steady ? 0.75 + 0.3 * wave : Math.max(0, 0.55 + 0.6 * wave));
@@ -208,7 +228,9 @@ export function SetTraffic({
         if (c.gone || c.s < 8 || c.s > st.length - 8) continue;
         const me = at(l, c, c.s);
         const fx = Math.sin(me.h), fz = Math.cos(me.h);
-        for (const o of others) {
+        for (let k = 0; k < others.length; k++) {
+          if (owners[k] === ignore) continue;
+          const o = others[k];
           const dx = o.x - me.x, dz = o.z - me.z;
           const d = Math.hypot(dx, dz);
           if (d > 16) continue;
@@ -233,7 +255,7 @@ export function SetTraffic({
           const now = at(l, c, c.s);
           const next = at(l, c, (c.s + v * dt * l.dir + st.length) % st.length);
           const hits = (o: Footprint) => Math.hypot(o.x - next.x, o.z - next.z) < 12 && footprintsMeet(next, o) && !footprintsMeet(now, o);
-          const hitBy = others.find(hits) ?? waiting.find(hits);
+          const hitBy = others.find((o, k) => owners[k] !== ignore && hits(o)) ?? waiting.find(hits);
           if (hitBy) {
             // a city car standing in the street's way: it's asked to back out (the street has right of way)
             if (waiting.includes(hitBy) && inTheWay.length < 20) inTheWay.push({ x: hitBy.x, z: hitBy.z });
@@ -248,11 +270,10 @@ export function SetTraffic({
         // round again (far off at the start): back in the column
         if ((c.s - was) * l.dir < 0) c.gone = c.turning = false;
         // a turning off this lane (the car park on the first; the T-junction's side road)
-        const ex = l === lanes[0] && exit ? exit : exits.find((e) => lanes[e.lane] === l);
         if (ex && !c.gone) {
           const exit = ex;
           const ahead = (exit.s - c.s) * l.dir;
-          if (!c.turning && ahead > 0 && ahead < exit.lead * Math.max(step, 1) && exit.want(c.kind)) c.turning = true;
+          if (!c.turning && ahead > 0 && ahead < exit.lead * Math.max(step, 1) && exit.want(c.kind, step)) c.turning = true;
           if (c.turning && ahead <= 0) {
             streamAt(st, c.s, P);
             const h = Math.atan2(P.dx, P.dz) + (l.dir < 0 ? Math.PI : 0);
