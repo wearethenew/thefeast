@@ -18,4 +18,4 @@ export function NameTag({ name, y = 2.05, you = false }: { name: string; y?: num
   );
 }
 
-export const ATTENDEE_NAMES = ["Tolu", "Chioma", "Emeka", "Funke", "Ngozi", "Tunde", "Bisi", "Kemi", "Femi", "Ifeoma", "Seyi", "Uche", "Dayo", "Amaka", "Segun", "Yemi", "Kunle", "Zainab", "Obinna", "Halima"];
+export const ATTENDEE_NAMES = ["Grace", "Daniel", "Joy", "Michael", "Esther", "David", "Sarah", "Samuel", "Rachel", "Tolu", "Victoria", "Joshua", "Hannah", "Emeka", "Rebecca", "Jonathan", "Chioma", "Faith", "Peter", "Deborah"];
