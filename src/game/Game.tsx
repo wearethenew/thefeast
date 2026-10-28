@@ -189,7 +189,6 @@ export default function Game() {
     };
     window.addEventListener("pointerdown", first);
     window.addEventListener("keydown", first, { once: true });
-    preloadAvatars();
     // arriving from a friend's invite: you'll ride with them, from the pickup they set
     const inv = new URLSearchParams(window.location.search).get("invite");
     if (inv) {
@@ -217,6 +216,8 @@ export default function Game() {
         gl={{ antialias: false, toneMapping: THREE.NeutralToneMapping, outputColorSpace: THREE.SRGBColorSpace, powerPreference: "high-performance" }}
         camera={{ position: [0, 1.6, 4], fov: 40, near: 0.1, far: 30000 }}
         onCreated={({ gl }) => {
+          // (once the 3D view and its context exist: the avatars' compressed images are read for it)
+          preloadAvatars(useGame.getState().player.avatarId);
           gl.domElement.addEventListener("webglcontextlost", (e) => {
             e.preventDefault();
             setLost(true);

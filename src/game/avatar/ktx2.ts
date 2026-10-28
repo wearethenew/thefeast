@@ -7,23 +7,26 @@ import type { GLTFLoader } from "three-stdlib";
 
 let loader: KTX2Loader | null = null;
 
-/** What this device's GPU can read, asked of a throwaway 1×1 context (no need to wait for the scene's). */
+/**
+ * What this device's GPU can read, asked of the scene's own WebGL context (the 3D view's canvas
+ * already has it: asking again hands back the same one, so no second context is ever made).
+ */
 function capabilities() {
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 1;
-  const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+  let gl: WebGL2RenderingContext | WebGLRenderingContext | null = null;
+  for (const c of document.querySelectorAll("canvas")) {
+    gl = (c.getContext("webgl2") as WebGL2RenderingContext | null) ?? (c.getContext("webgl") as WebGLRenderingContext | null);
+    if (gl) break;
+  }
   const ext = (name: string) => gl?.getExtension(name) ?? null;
-  const shim = { extensions: { has: (name: string) => !!ext(name), get: (name: string) => ext(name) } };
-  return { shim, done: () => (ext("WEBGL_lose_context") as WEBGL_lose_context | null)?.loseContext() };
+  return { extensions: { has: (name: string) => !!ext(name), get: (name: string) => ext(name) } };
 }
 
 /** For useGLTF's `extendLoader`: lets a glTF loader read KTX2 images. */
 export function withKTX2(gltf: GLTFLoader) {
   if (!loader) {
-    loader = new KTX2Loader().setTranscoderPath("/basis/");
-    const { shim, done } = capabilities();
-    loader.detectSupport(shim as never);
-    done();
+    // (one image unpacked at a time: less memory in use at once while everything else loads)
+    loader = new KTX2Loader().setTranscoderPath("/basis/").setWorkerLimit(1);
+    loader.detectSupport(capabilities() as never);
   }
   gltf.setKTX2Loader(loader as never);
 }

@@ -11,12 +11,18 @@ import { withKTX2 } from "./ktx2";
 /** The clips every avatar loads; others (cheer, run, clap) load only for an avatar that plays them. */
 const CORE_ANIMS: AnimName[] = ["idle", "walk", "sit", "wave"];
 
-export function preloadAvatars() {
-  for (const a of AVATARS) {
-    useGLTF.preload(a.file, true, true, withKTX2);
-    for (const n of CORE_ANIMS) useGLTF.preload(animFile(a.sex, n));
-  }
+/**
+ * At the start: only your own avatar (and the clips, which are small), never the whole cast at
+ * once: unpacking every person together is what a phone can't take while the city loads. The
+ * crowd's people load one at a time as they're baked (see CrowdBaker, and preloadAvatar).
+ */
+export function preloadAvatars(yours: string) {
+  const me = AVATARS.find((a) => a.id === yours) ?? AVATARS[0];
+  preloadAvatar(me.file);
+  for (const sex of ["f", "m"] as Sex[]) for (const n of CORE_ANIMS) useGLTF.preload(animFile(sex, n));
 }
+/** One avatar's model, fetched ahead of when it's needed. */
+export const preloadAvatar = (file: string) => useGLTF.preload(file, true, true, withKTX2);
 
 /** Loads all clips for one sex, renamed to their AnimName and made in-place (no root drift). */
 function useClips(sex: Sex, extra?: AnimName) {

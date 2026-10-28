@@ -3,7 +3,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import * as THREE from "three";
-import type { AvatarHandle } from "../avatar/Avatar";
+import { preloadAvatar, type AvatarHandle } from "../avatar/Avatar";
 import { Character } from "../avatar/Character";
 import { AVATARS } from "../data/avatars";
 import { bakeSteps, simplifierReady, type Baked } from "./vat";
@@ -71,6 +71,11 @@ export function CrowdBaker() {
   useEffect(() => {
     simplifierReady().then(() => setReady(true));
   }, []);
+  // the next person's model on its way while this one bakes (one ahead, never the whole cast)
+  useEffect(() => {
+    const next = JOBS[job + 1];
+    if (next) preloadAvatar(next.avatar.file);
+  }, [job]);
   useFrame(() => {
     const next = uploads.current.shift();
     if (next) {
