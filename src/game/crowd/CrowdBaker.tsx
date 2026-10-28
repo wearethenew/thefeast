@@ -7,6 +7,7 @@ import { preloadAvatar, type AvatarHandle } from "../avatar/Avatar";
 import { Character } from "../avatar/Character";
 import { AVATARS } from "../data/avatars";
 import { bakeSteps, simplifierReady, type Baked } from "./vat";
+import { Q } from "../quality";
 
 // Bakes every avatar's walk (torch in hand), sitting and standing poses for some, once, in the
 // background while the opening film plays. Everyday clothes, no robes. Each Character is mounted out of sight, posed through its clip, baked, unmounted.
@@ -58,7 +59,6 @@ function dropPageCopy(t: THREE.Texture) {
   t.image = size;
 }
 
-const TOUCH = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
 export function CrowdBaker() {
   const [job, setJob] = useState(0);
@@ -104,7 +104,7 @@ export function CrowdBaker() {
     // a light scene, and the film waits on it), a few milliseconds once it is
     const t0 = performance.now();
     // (a phone gets smaller slices: its frames have less to spare)
-    const budget = (models.size < CORE_MODELS ? 10 : 4) * (TOUCH ? 0.5 : 1);
+    const budget = (models.size < CORE_MODELS ? 10 : 4) * (Q.lite ? 0.5 : 1);
     let r = running.current.next();
     while (!r.done && performance.now() - t0 < budget) r = running.current.next();
     if (!r.done) return;

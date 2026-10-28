@@ -7,6 +7,7 @@ import * as THREE from "three";
 import { AVATARS } from "../data/avatars";
 import { STANDING_AVATARS, WALK_AVATARS, getModel, useCrowdProgress, type CrowdAnim } from "./CrowdBaker";
 import { flameMaterial, lookMaterial, vatClock, vatDepthMaterial, vatMaterial, type Baked } from "./vat";
+import { Q } from "../quality";
 
 /** One person in a crowd. The renderer reads these every frame. */
 export type Agent = {
@@ -90,10 +91,10 @@ function buildGroup(b: Baked, cap: number, shadows: boolean, parent: THREE.Objec
   return { lods };
 }
 
-/** The most triangles all the people in view may cost in a frame; past it, everyone else is drawn at the lightest level. */
-const BUDGET = 2_000_000;
-/** Beyond this (metres from the camera) people are drawn at the lightest level. */
-const FAR = 45;
+/** The most triangles all the people in view may cost in a frame (past it, everyone else is drawn at
+ * the lightest level), and beyond what distance (m) people are always drawn light: per device. */
+const BUDGET = Q.peopleBudget;
+const FAR = Q.farPeople;
 /** Most people drawn with the detailed mesh in one frame (keeps the GPU well within budget). */
 const MAX_DETAILED = 220;
 const _frustum = new THREE.Frustum();

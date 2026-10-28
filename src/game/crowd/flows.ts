@@ -4,6 +4,7 @@ import { COMPOUND, GATE_OPENING, MAIN_DOOR, PED_GATE, PLOT, TENTS, boothFront, b
 import { segDist, type LagosWorld, type Pt } from "../world/lagosData";
 import { resample, streamAt, type Group, type Stream } from "../world/processionData";
 import { waitAtCrossing } from "../world/parkingLot";
+import { Q } from "../quality";
 
 // People walking in orderly flows: along a path, in loose rows and lanes, all at the flow's pace
 // so nobody walks through anybody. When someone reaches the end they start again at the back.
@@ -151,11 +152,8 @@ export function gateApproach(w: LagosWorld, probe: [number, number], mouth: [num
 }
 
 /** Fill a stretch [from, to] of a path with walkers in loose rows. */
-/**
- * How full every crowd is, everywhere (1 = as first laid out). Half: still a packed, moving crowd,
- * at half the people to draw, which is what lets a phone keep up.
- */
-export const CROWD_DENSITY = 0.5;
+/** How full every crowd is, everywhere (1 = as first laid out): set by the device (see quality.ts). */
+export const CROWD_DENSITY = Q.crowd;
 
 export function fill(st: Stream, from: number, to: number, opts: { seed: number; keep?: number; row?: number; lane?: number; speed?: number; maxHalf?: number; band?: [number, number] }) {
   const out: Walker[] = [];

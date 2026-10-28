@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { streamAt, type Stream } from "./processionData";
 import { danfo, keke, okada, sedan, suv, truck } from "./vehicleModels";
 import { inTheWay, trafficNow } from "./trafficLive";
+import { Q } from "../quality";
 
 // Traffic on a campus road in the opening film: the walkers keep to one half of the carriageway
 // and the cars, danfos, kekes and okadas crawl both ways along the other half, behind a line of
@@ -188,8 +189,10 @@ export function SetTraffic({
     streamAt(st, s, P);
     return { x: P.x - P.dz * l.off, z: P.z + P.dx * l.off, h: Math.atan2(P.dx, P.dz) + (l.dir < 0 ? Math.PI : 0), l: KINDS[c.kind].len, w: KINDS[c.kind].w };
   };
-  useFrame((_, rawDt) => {
+  useFrame(({ camera }, rawDt) => {
     if (!active) return;
+    // (cars are only drawn within the device's distance of the camera: they all still drive)
+    const reach2 = Q.carsWithin * Q.carsWithin;
     const dt = Math.min(rawDt, 0.1);
     clock.current += dt;
     const n = KINDS.map(() => 0);
@@ -291,6 +294,7 @@ export function SetTraffic({
         streamAt(st, c.s, P);
         const im = meshes.current[c.kind];
         if (!im) continue;
+        if ((P.x - camera.position.x) ** 2 + (P.z - camera.position.z) ** 2 > reach2) continue;
         const h = Math.atan2(P.dx, P.dz) + (l.dir < 0 ? Math.PI : 0);
         q.setFromAxisAngle(up, h);
         m.compose(pos.set(P.x - P.dz * l.off, 0, P.z + P.dx * l.off), q, one);

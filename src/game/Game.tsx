@@ -18,12 +18,13 @@ import { CrowdBaker, WALK_AVATARS, useCrowdProgress } from "./crowd/CrowdBaker";
 const LOADING = "Bringing great joy to the city…";
 
 /**
- * Phones and tablets draw a lighter frame: the screen's own pixel density (no supersampling),
- * no shadow pass and no glow pass (each needs whole extra screens of graphics memory and drawing
- * every frame). The scene, its people and its lights are the same; it's what lets a phone keep it.
+ * Phones and tablets draw a lighter frame (see quality.ts): the screen's own pixel density (no
+ * supersampling), no shadow pass and no glow pass, each of which needs whole extra screens of
+ * graphics memory and drawing every frame.
  */
-const LITE = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+const LITE = Q.lite;
 import { useGame } from "./store";
+import { Q } from "./quality";
 import { TitleUI } from "./ui/TitleUI";
 import { VenueUI } from "./ui/VenueUI";
 

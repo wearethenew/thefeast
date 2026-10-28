@@ -6,6 +6,7 @@ import { streetPaths } from "../crowd/flows";
 import * as THREE from "three";
 import { GradientSky } from "../fx/Backdrop";
 import { useGame } from "../store";
+import { Q } from "../quality";
 import { City, DistantCity } from "../world/City";
 import type { CarState } from "../world/Driving";
 import { FusionCentre } from "../world/FusionCentre";
@@ -141,10 +142,10 @@ export function WorldScene() {
       </Warm>
       {/* route signage belongs to the ride across Lagos */}
       {stage === "drive" && <Signage world={world} />}
-      {!dusk && <Traffic world={world} player={car} />}
+      {!dusk && <Traffic world={world} player={car} count={Math.round(230 * Q.cars)} />}
       {dusk && (
         <Suspense fallback={null}>
-          <Traffic world={world} walks={walks} count={140} radius={320} active={busyLagos} />
+          <Traffic world={world} walks={walks} count={Math.round(140 * Q.cars)} radius={320} active={busyLagos} />
         </Suspense>
       )}
       {dusk && <BoothButtons />}
