@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState } from "react";
-import { MERCH, naira } from "../data/merch";
+import { MERCH } from "../data/merch";
 import { MerchArt } from "./MerchArt";
 import { WEND_ANSWERS, WEND_TRIES } from "../data/wend";
 import { useGame } from "../store";
@@ -354,7 +354,6 @@ function MerchPanel({ onClose }: { onClose: () => void }) {
               >
                 <Swatch item={m} />
                 <div className="mt-1.5 text-[12px] font-bold leading-tight">{m.name}</div>
-                <div className="text-[11px] text-gold">{naira(m.price)}</div>
               </button>
             ))}
           </div>
@@ -362,7 +361,6 @@ function MerchPanel({ onClose }: { onClose: () => void }) {
             <Swatch item={item} color={color.hex} design={design} big />
             <div>
               <div className="text-base font-extrabold">{item.name}</div>
-              <div className="text-sm font-bold text-gold">{naira(item.price)}</div>
               <p className="mt-1 text-[12px] text-white/70">{item.blurb}</p>
               {item.designs && (
                 <>
@@ -425,7 +423,7 @@ function MerchPanel({ onClose }: { onClose: () => void }) {
               <TorchFirst what="your pre-order" back="merch" />
             ) : (
               <button className="btn-gold w-full py-3.5 text-[15px]" disabled={busy}>
-                {busy ? "Sending…" : `Pre-order · ${naira(item.price * qty)}`}
+                {busy ? "Sending…" : "Pre-order"}
               </button>
             )}
           </div>

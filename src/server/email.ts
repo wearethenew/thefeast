@@ -23,7 +23,17 @@ export async function sendEmail(to: string, subject: string, html: string, text:
   if (user && pass) {
     const given = process.env.EMAIL_HOST?.trim();
     const host = !given || given === "mail.google.com" || given === "gmail.com" ? "smtp.gmail.com" : given;
-    transport ??= nodemailer.createTransport({ host, port: 465, secure: true, auth: { user, pass } });
+    // port 587 with STARTTLS: 465 is blocked on many networks; and never more than 15 s waiting on it
+    transport ??= nodemailer.createTransport({
+      host,
+      port: 587,
+      secure: false,
+      requireTLS: true,
+      auth: { user, pass },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
+    });
     await transport.sendMail({
       from: `"The Feast 2026 · The New Church" <${user}>`,
       to,

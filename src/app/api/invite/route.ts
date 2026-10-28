@@ -35,7 +35,8 @@ export async function POST(req: Request) {
     <p style="font-size:12px;opacity:.7">The New Church · wearethenew.org</p></div>`;
 
   let sent = false;
-  if (emailConfigured()) sent = await sendEmail(email, subject, html, text);
+  // (the invite is saved either way: if the email can't go, the visitor's own mail app sends it)
+  if (emailConfigured()) sent = await sendEmail(email, subject, html, text).catch((e) => (console.error("[invite] email failed", e), false));
   // without an email service the browser opens the visitor's own mail app with this message
   const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
   return Response.json({ ok: true, sent, link, mailto: sent ? null : mailto });
