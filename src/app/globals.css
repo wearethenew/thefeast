@@ -127,3 +127,9 @@ body {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
 }
+
+/* Next.js's development overlay (the "N" and the red "Issues" pill): never over the experience.
+   It only exists while developing; errors still go to the browser console and the terminal. */
+nextjs-portal {
+  display: none !important;
+}
