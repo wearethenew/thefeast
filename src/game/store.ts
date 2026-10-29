@@ -92,6 +92,8 @@ type GameState = {
   pass: { code: string; issuedAt: number } | null;
   /** Where you appear when you start walking: on the street, or at the Main Hall door. */
   spawnAt: "street" | "door";
+  /** Bumped to bring you to the Main Hall doors while you're already walking the compound. */
+  toDoor: number;
   /** The visitor has taken the aerial camera (drag/zoom); "Reset view" hands it back. */
   freeCam: boolean;
   /** Bumped to jump the opening film to the Fusion Centre. */
@@ -158,6 +160,7 @@ export const useGame = create<GameState>((set, get) => ({
   skipFilm: 0,
   freeCam: false,
   spawnAt: "street",
+  toDoor: 0,
   tele: { speedKmh: 0, remainingM: 0, routeM: 0, heading: 0, x: 0, z: 0, street: "", flightT: 0 },
   setStage: (stage) => set({ stage }),
   updatePlayer: (p) => set({ player: { ...get().player, ...p } }),

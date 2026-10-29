@@ -847,6 +847,9 @@ function VenueCrowd({
   );
 }
 
+/** Right in front of the Main Hall doors, facing in. */
+const atDoor = () => ({ x: MAIN_DOOR.x, z: MAIN_DOOR.z + 4.5, heading: Math.PI, moving: false });
+
 export function Venue({ world }: { world: LagosWorld }) {
   const player = useGame((s) => s.player);
   const registered = useGame((s) => !!s.registered);
@@ -863,12 +866,7 @@ export function Venue({ world }: { world: LagosWorld }) {
         })()
       : useGame.getState().spawnAt === "door"
         ? // "Join the Feast": right in front of the Main Hall doors, facing in
-          {
-            x: MAIN_DOOR.x,
-            z: MAIN_DOOR.z + 4.5,
-            heading: Math.PI,
-            moving: false,
-          }
+          atDoor()
         : // "Enter through the gate": on Acme Road outside the main (sliding) gate, facing in
           {
             x: (GATE_OPENING.x0 + GATE_OPENING.x1) / 2,
@@ -1014,6 +1012,18 @@ export function Venue({ world }: { world: LagosWorld }) {
     camera.getWorldDirection(d);
     camLook.current.copy(camera.position).addScaledVector(d, 30);
   }, [compound, camera]);
+
+  // "Walk in with the crowd" from the registration board while you're already here: you're taken
+  // to the Main Hall doors, and the camera cuts in behind you there
+  const toDoor = useGame((s) => s.toDoor);
+  const doorSeen = useRef(toDoor);
+  useEffect(() => {
+    if (toDoor === doorSeen.current) return;
+    doorSeen.current = toDoor;
+    const d = (state.current = atDoor());
+    camPos.current.copy(compound.localToWorld(new THREE.Vector3(d.x, 3, d.z + 7)));
+    camLook.current.copy(compound.localToWorld(new THREE.Vector3(d.x, 1.6, d.z - 6)));
+  }, [toDoor, compound]);
 
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);

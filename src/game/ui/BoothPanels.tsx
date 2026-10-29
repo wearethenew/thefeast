@@ -117,7 +117,6 @@ function KidsAges({ count, ages, setAges }: { count: number; ages: string[]; set
 }
 
 function RegisterPanel({ onClose }: { onClose: () => void }) {
-  const stage = useGame((s) => s.stage);
   const set = useGame((s) => s.set);
   const register = useGame((s) => s.register);
   // already registered on this browser: straight to your torch, pass and referral ID
@@ -231,11 +230,10 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
               Back to {RETURN_LABEL[back] ?? "where you were"} →
             </button>
           )}
-          {stage === "title" && (
-            <button className="btn-gold mt-4 w-full py-3 text-xs" onClick={() => set({ panel: null, stage: "venue", spawnAt: "door", arrived: true, venueSpot: null, seated: false })}>
-              Walk in with the crowd →
-            </button>
-          )}
+          {/* always: wherever you are, it takes you to the Main Hall doors with your torch */}
+          <button className="btn-gold mt-4 w-full py-3 text-xs" onClick={() => set({ panel: null, stage: "venue", spawnAt: "door", arrived: true, venueSpot: null, seated: false, toDoor: Date.now() })}>
+            Walk in with the crowd →
+          </button>
         </div>
       ) : returning ? (
         <form onSubmit={findMine} className="space-y-3">
