@@ -208,11 +208,11 @@ export function DriveUI() {
 
       {!arrived && !autopilot && ride === "cab" && (
         <>
-          <div className="pointer-events-auto absolute bottom-4 left-4 flex gap-2">
+          <div className="pointer-events-auto absolute bottom-4 left-4 flex gap-2 sm:hidden">
             <Pedal label="◀" k="left" />
             <Pedal label="▶" k="right" />
           </div>
-          <div className="pointer-events-auto absolute bottom-4 right-4 flex gap-2">
+          <div className="pointer-events-auto absolute bottom-4 right-4 flex gap-2 sm:hidden">
             <Pedal label="⏷" k="down" />
             <Pedal label="⏶" k="up" className="bg-gold/30" />
           </div>
