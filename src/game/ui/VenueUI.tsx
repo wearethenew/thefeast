@@ -905,8 +905,8 @@ export function VenueUI() {
 
           {!seated && (
             <>
-              {/* small screens: an arrow pad (up and down walk, left and right turn) */}
-              <div className="pointer-events-auto absolute bottom-4 right-4 grid grid-cols-3 grid-rows-2 gap-1.5 sm:hidden">
+              {/* every screen: an arrow pad (up and down walk, left and right turn), alongside the keys */}
+              <div className="pointer-events-auto absolute bottom-4 right-4 grid grid-cols-3 grid-rows-2 gap-1.5">
                 <div className="col-start-2">
                   <HoldButton k="up" aria="Walk forward" />
                 </div>
