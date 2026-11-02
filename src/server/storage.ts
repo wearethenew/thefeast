@@ -14,7 +14,7 @@ import { appendRow, readColumn, readRows, sheetsConfigured } from "./sheets";
 
 /** Every kind of entry, its tab name in the sheet and its columns (in order). */
 export const TABLES = {
-  registrations: { tab: "Registrations", headers: ["created_at", "first_name", "last_name", "email", "phone", "country", "referral_code", "referred_by", "emailed", "attendance", "days", "with_kids", "kids_ages", "with_teens", "kids_count", "teens_count", "ticket_id"] },
+  registrations: { tab: "Registrations", headers: ["created_at", "first_name", "last_name", "email", "phone", "country", "referral_code", "referred_by", "emailed", "attendance", "days", "with_kids", "kids_ages", "with_teens", "kids_count", "teens_count", "ticket_id", "church_member", "first_time"] },
   merch: { tab: "Merch", headers: ["created_at", "name", "email", "phone", "item", "size", "quantity", "total", "notes", "color", "design"] },
   games: { tab: "Games", headers: ["created_at", "game", "answer", "guesses", "won", "seconds"] },
   winners: { tab: "Winners", headers: ["created_at", "game", "answer", "guesses", "name", "email", "phone"] },

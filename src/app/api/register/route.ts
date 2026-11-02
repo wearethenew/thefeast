@@ -148,6 +148,9 @@ export async function POST(req: Request) {
     kids_ages: kidsAges.join(", ") || null,
     teens_count: teens,
     ticket_id: ticket,
+    // asked from Nov 2026 (older pages don't send them: left blank rather than turned away)
+    church_member: typeof body.member === "boolean" ? body.member : null,
+    first_time: typeof body.firstTime === "boolean" ? body.firstTime : null,
   });
   return Response.json({ ok: true, code, ticket, passDays, qr: "data:image/png;base64," + qr.toString("base64"), emailed });
 }

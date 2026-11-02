@@ -48,30 +48,43 @@ async function call(path: string, init: RequestInit = {}) {
   return res.json();
 }
 
-const known = new Set<string>();
+/** A column's letters from its 0-based index: 0 → A, 25 → Z, 26 → AA. */
+const colLetter = (i: number): string => (i >= 26 ? colLetter(Math.floor(i / 26) - 1) : "") + String.fromCharCode(65 + (i % 26));
 
-/** Make sure a tab exists, with a header row when it's new. */
+/** Each tab's header row as it is in the sheet (once checked this run). */
+const known = new Map<string, string[]>();
+
+/**
+ * Make sure a tab exists, and that its header row has every column we write. A new column only
+ * ever goes after the last one already there (just its header cell is written), so nothing in the
+ * sheet moves: every row is matched to the sheet's own headers, by name, whatever their order.
+ */
 async function ensureTab(tab: string, headers: string[]) {
-  if (known.has(tab)) return;
+  const seen = known.get(tab);
+  if (seen && headers.every((h) => seen.includes(h))) return seen;
   const meta = (await call("?fields=sheets.properties.title")) as { sheets: { properties: { title: string } }[] };
+  let cols: string[];
   if (!meta.sheets.some((s) => s.properties.title === tab)) {
     await call(":batchUpdate", { method: "POST", body: JSON.stringify({ requests: [{ addSheet: { properties: { title: tab } } }] }) });
     await call(`/values/${encodeURIComponent(tab)}!A1:append?valueInputOption=RAW`, { method: "POST", body: JSON.stringify({ values: [headers] }) });
+    cols = headers;
   } else {
-    // a tab made before new columns were added: extend its header row to match
     const head = (await call(`/values/${encodeURIComponent(tab)}!1:1`)) as { values?: string[][] };
     const have = head.values?.[0] ?? [];
-    if (have.length < headers.length && have.every((h, i) => h === headers[i]))
-      await call(`/values/${encodeURIComponent(tab)}!A1?valueInputOption=RAW`, { method: "PUT", body: JSON.stringify({ values: [headers] }) });
+    const missing = headers.filter((h) => !have.includes(h));
+    if (missing.length)
+      await call(`/values/${encodeURIComponent(`${tab}!${colLetter(have.length)}1`)}?valueInputOption=RAW`, { method: "PUT", body: JSON.stringify({ values: [missing] }) });
+    cols = [...have, ...missing];
   }
-  known.add(tab);
+  known.set(tab, cols);
+  return cols;
 }
 
-/** Append one row to a tab (columns in the order of `headers`). */
+/** Append one row to a tab, each value under its header (columns added by hand are left blank). */
 export async function appendRow(tab: string, headers: string[], row: Record<string, unknown>) {
-  await ensureTab(tab, headers);
-  const values = [headers.map((h) => {
-    const v = row[h];
+  const cols = await ensureTab(tab, headers);
+  const values = [cols.map((h) => {
+    const v = headers.includes(h) ? row[h] : null;
     return v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
   })];
   await call(`/values/${encodeURIComponent(tab)}!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, { method: "POST", body: JSON.stringify({ values }) });
@@ -94,7 +107,7 @@ export async function readColumn(tab: string, header: string): Promise<string[]>
     const head = (await call(`/values/${encodeURIComponent(tab)}!1:1`)) as { values?: string[][] };
     const col = head.values?.[0]?.indexOf(header) ?? -1;
     if (col < 0) return [];
-    const letter = String.fromCharCode(65 + col);
+    const letter = colLetter(col);
     const data = (await call(`/values/${encodeURIComponent(tab)}!${letter}2:${letter}`)) as { values?: string[][] };
     return (data.values ?? []).map((r) => r[0] ?? "");
   } catch {

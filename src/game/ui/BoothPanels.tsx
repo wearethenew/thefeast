@@ -85,6 +85,23 @@ function YesNoCount({ title, on, count, setOn, setCount, chip, what }: { title: 
   );
 }
 
+/** A plain yes or no question. */
+function YesNo({ title, on, setOn, chip }: { title: string; on: boolean | null; setOn: (v: boolean) => void; chip: (on: boolean) => string }) {
+  return (
+    <div>
+      <label className={label}>{title}</label>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" className={chip(on === true)} onClick={() => setOn(true)}>
+          Yes
+        </button>
+        <button type="button" className={chip(on === false)} onClick={() => setOn(false)}>
+          No
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** One age box per kid. */
 function KidsAges({ count, ages, setAges }: { count: number; ages: string[]; setAges: (v: string[]) => void }) {
   if (count < 1) return null;
@@ -124,6 +141,8 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
   const back = useGame((s) => s.torchReturn);
   const [f, setF] = useState({ firstName: "", lastName: "", email: "", phone: "", country: "Nigeria" });
   const fullName = `${f.firstName.trim()} ${f.lastName.trim()}`.trim();
+  const [member, setMember] = useState<boolean | null>(null);
+  const [firstTime, setFirstTime] = useState<boolean | null>(null);
   const [kids, setKids] = useState<boolean | null>(null);
   const [teens, setTeens] = useState<boolean | null>(null);
   const [kidsCount, setKidsCount] = useState("");
@@ -147,6 +166,8 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
     !!f.lastName.trim() &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim()) &&
     f.phone.replace(/\D/g, "").length >= 7 &&
+    member !== null &&
+    firstTime !== null &&
     attendance !== null &&
     (attendance === "online" || days.length > 0) &&
     kids !== null &&
@@ -157,6 +178,8 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ready) return setErr("Please answer every question first");
+    if (member === null) return setErr("Are you a member of The New Church?");
+    if (firstTime === null) return setErr("Is this your first time at The Feast?");
     if (attendance === null) return setErr("How will you be attending?");
     if (attendance === "onsite" && !days.length) return setErr("Which days will you be with us?");
     if (kids === null) return setErr("Are you coming with kids?");
@@ -168,7 +191,7 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setErr("");
     try {
-      const r = await post("/api/register", { ...f, attendance, days: attendance === "onsite" ? days : [], kids, kidsCount: Number(kidsCount) || 0, kidsAges: ages, teens, teensCount: Number(teensCount) || 0 });
+      const r = await post("/api/register", { ...f, member, firstTime, attendance, days: attendance === "onsite" ? days : [], kids, kidsCount: Number(kidsCount) || 0, kidsAges: ages, teens, teensCount: Number(teensCount) || 0 });
       setDone({ code: r.code, ticket: r.ticket, qr: r.qr, emailed: r.emailed, days: r.passDays, online: attendance === "online" });
       // your torch: carried from here on, and the Main Hall's doors open to you
       register({ code: r.code, ticket: r.ticket, qr: r.qr, days: r.passDays, online: attendance === "online", firstName: f.firstName.trim(), name: fullName, email: f.email.trim(), phone: f.phone.trim(), at: Date.now() });
@@ -294,6 +317,8 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
               </select>
             </div>
           </div>
+          <YesNo title="Are you a member of The New Church?" on={member} setOn={setMember} chip={chip} />
+          <YesNo title="Is this your first time at The Feast?" on={firstTime} setOn={setFirstTime} chip={chip} />
           <div>
             <label className={label}>How will you be attending?</label>
             <div className="grid grid-cols-2 gap-2">
