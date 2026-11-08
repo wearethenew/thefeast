@@ -3,7 +3,7 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { getStore } from "@netlify/blobs";
-import { appendRow, readColumn, readRows, sheetsConfigured } from "./sheets";
+import { appendRow, readColumn, readRows, sheetsConfigured, updateCells } from "./sheets";
 
 // Where Feast entries go, in order of preference:
 //  1. Google Sheets (GOOGLE_SHEET_ID + service account): one tab per table, see sheets.ts.
@@ -20,6 +20,9 @@ export const TABLES = {
   winners: { tab: "Winners", headers: ["created_at", "game", "answer", "guesses", "name", "email", "phone"] },
   volunteers: { tab: "Volunteers", headers: ["created_at", "name", "contact", "teams"] },
   testimonies: { tab: "Testimonies", headers: ["created_at", "name", "text", "published"] },
+  // Friday's breakout sessions: one row per answer to the attendant ("yes" with the session, or
+  // "no"); number is the place among all breakout registrations, session_number within the session
+  breakouts: { tab: "Breakouts", headers: ["created_at", "number", "session", "session_number", "status", "answer", "ticket_id", "first_name", "last_name", "email", "phone"] },
   invites: { tab: "Invites", headers: ["created_at", "id", "from_name", "friend_name", "friend_email", "pickup_label", "pickup_lat", "pickup_lon"] },
 } as const;
 export type Table = keyof typeof TABLES;
@@ -33,7 +36,11 @@ function backupStore() {
   }
 }
 
-export async function save(table: Table, row: Record<string, unknown>) {
+/**
+ * Saves an entry (as `save`), and says which sheet row it went in when it's in the sheet (null
+ * otherwise): then `fill` can complete that one row.
+ */
+export async function save(table: Table, row: Record<string, unknown>): Promise<number | null> {
   const record = { ...row, created_at: new Date().toISOString() };
   const backup = backupStore();
   let backedUp = false;
@@ -46,12 +53,20 @@ export async function save(table: Table, row: Record<string, unknown>) {
     }
   }
   try {
-    await saveMain(table, record, backedUp);
+    return (await saveMain(table, record, backedUp)) ?? null;
   } catch (e) {
     // kept in the backup: the visitor's entry still counts
     if (!backedUp) throw e;
     console.error("storage", table, e);
+    return null;
   }
+}
+
+/** Fills in cells of the one sheet row an entry was just saved to (see `save`). */
+export async function fill(table: Table, at: number, values: Record<string, unknown>) {
+  if (!sheetsConfigured()) return;
+  const t = TABLES[table];
+  await updateCells(t.tab, [...t.headers], at, values);
 }
 
 async function saveMain(table: Table, record: Record<string, unknown>, backedUp: boolean) {
@@ -77,8 +92,8 @@ async function saveMain(table: Table, record: Record<string, unknown>, backedUp:
   await appendFile(path.join(dir, `${table}.jsonl`), JSON.stringify(record) + "\n");
 }
 
-/** Every entry in a table (from wherever entries are kept). */
-async function rowsOf(table: Table): Promise<Record<string, unknown>[]> {
+/** Every entry in a table (from wherever entries are kept), oldest first. */
+export async function rowsOf(table: Table): Promise<Record<string, unknown>[]> {
   if (sheetsConfigured()) return readRows(TABLES[table].tab);
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;

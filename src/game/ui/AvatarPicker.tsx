@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { AVATAR_KEY, PLAYER_AVATARS, useGame } from "../store";
 
 // Bottom of the screen: pick who you are, a woman or a man (heads only, no names). That's the
@@ -36,8 +37,10 @@ export function AvatarPicker({ className = "", compact = false }: { className?: 
       /* storage unavailable: for this visit only */
     }
   };
+  const ref = useRef<HTMLDivElement>(null);
+  const covered = useCovered(ref);
   return (
-    <div className={`pointer-events-auto fixed z-20 flex rounded-[4px] border border-white/15 bg-black/70 backdrop-blur ${compact ? "gap-2 px-2 py-1.5" : "gap-3 px-3 py-2"} ${className}`} role="radiogroup" aria-label="Your avatar">
+    <div ref={ref} aria-hidden={covered || undefined} className={`${covered ? "invisible pointer-events-none" : "pointer-events-auto"} fixed z-20 flex rounded-[4px] border border-white/15 bg-black/70 backdrop-blur ${compact ? "gap-2 px-2 py-1.5" : "gap-3 px-3 py-2"} ${className}`} role="radiogroup" aria-label="Your avatar">
       {(["f", "m"] as const).map((sex) => {
         const id = PLAYER_AVATARS[sex];
         const on = avatarId === id;
@@ -59,4 +62,64 @@ export function AvatarPicker({ className = "", compact = false }: { className?: 
       })}
     </div>
   );
+}
+
+/** Does r overlap q (with a few pixels' margin)? */
+const overlaps = (r: DOMRect, q: DOMRect, m = 6) =>
+  r.left < q.right + m && r.right > q.left - m && r.top < q.bottom + m && r.bottom > q.top - m;
+
+/** Something you can see: text of its own, a background, a border or a picture. */
+function drawn(el: Element) {
+  if (el instanceof HTMLImageElement || el instanceof HTMLVideoElement || el instanceof HTMLIFrameElement || el instanceof SVGSVGElement) return true;
+  for (const n of el.childNodes) if (n.nodeType === 3 && n.textContent!.trim()) return true;
+  const cs = getComputedStyle(el);
+  const solid = (c: string) => c && c !== "transparent" && !/rgba\([^)]*,\s*0\)$/.test(c);
+  return solid(cs.backgroundColor) || cs.backgroundImage !== "none" || (parseFloat(cs.borderTopWidth) > 0 && solid(cs.borderTopColor));
+}
+
+function shown(el: Element) {
+  for (let e: Element | null = el; e && e !== document.body; e = e.parentElement) {
+    const cs = getComputedStyle(e);
+    if (cs.display === "none" || cs.visibility === "hidden" || parseFloat(cs.opacity) < 0.05) return false;
+  }
+  return true;
+}
+
+/**
+ * Is any other card, prompt or button on screen where the picker sits? Then the picker steps
+ * aside (it's hidden, not moved, until that's gone). The 3D scene, and the name tags that float
+ * over it, don't count.
+ */
+function useCovered(ref: React.RefObject<HTMLDivElement | null>) {
+  const [covered, setCovered] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      const me = ref.current;
+      if (!me) return;
+      const r = me.getBoundingClientRect();
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const scene = document.querySelector("canvas")?.parentElement?.parentElement ?? null;
+      let hit = false;
+      for (const el of document.body.querySelectorAll("*")) {
+        if (me.contains(el) || el.contains(me) || (scene && scene.contains(el))) continue;
+        if (el instanceof HTMLCanvasElement || el.tagName === "SCRIPT" || el.tagName === "STYLE") continue;
+        const q = el.getBoundingClientRect();
+        if (q.width < 2 || q.height < 2 || !overlaps(r, q)) continue;
+        // layout layers spread over the whole screen aren't cards
+        if (q.width * q.height > vw * vh * 0.6) continue;
+        if (!drawn(el) || !shown(el)) continue;
+        hit = true;
+        break;
+      }
+      setCovered(hit);
+    };
+    check();
+    const id = window.setInterval(check, 300);
+    window.addEventListener("resize", check);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("resize", check);
+    };
+  }, [ref]);
+  return covered;
 }

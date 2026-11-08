@@ -7,6 +7,7 @@ import { ROBES, type AnimName } from "../data/avatars";
 import { Torch } from "../fx/Torch";
 import { Avatar, type AvatarHandle, type AvatarRig as Rig } from "./Avatar";
 import { dressInRobe } from "./robe";
+import { BREAKOUT_FORM } from "./breakoutForm";
 
 // A Feast attendee: avatar + fitted TORCH robe + a lit torch held up in the right hand.
 
@@ -49,6 +50,8 @@ export type CharacterProps = Omit<ThreeElements["group"], "ref"> & {
   hoodUp?: boolean;
   anim?: AnimName;
   torch?: "none" | "unlit" | "lit";
+  /** Hold a clipboard in front of the chest instead (ushers); with torch "none". */
+  clipboard?: boolean;
   /** Raise the torch overhead (e.g. cheering). Otherwise it is carried in front of the chest. */
   raiseTorch?: boolean;
   torchLight?: boolean;
@@ -139,7 +142,7 @@ function gripHand(r: Rig, hand: THREE.Bone, axis: THREE.Vector3, across: THREE.V
 }
 
 export const Character = forwardRef<AvatarHandle, CharacterProps>(function Character(
-  { avatarId, robeId = "royal", robe: wearRobe = true, skin, hoodUp = false, anim = "idle", torch = "lit", raiseTorch = false, torchLight = true, torchShadows = false, timeScale, ...group },
+  { avatarId, robeId = "royal", robe: wearRobe = true, skin, hoodUp = false, anim = "idle", torch = "lit", raiseTorch = false, torchLight = true, torchShadows = false, timeScale, clipboard = false, ...group },
   ref,
 ) {
   const robe = ROBES.find((r) => r.id === robeId) ?? ROBES[0];
@@ -179,7 +182,7 @@ export const Character = forwardRef<AvatarHandle, CharacterProps>(function Chara
         rotateWorld(lUpper, new THREE.Quaternion().setFromAxisAngle(fwd, 0.24 * outward));
         endOverride(lUpper);
       }
-      if (torch === "none") return;
+      if (torch === "none" && !clipboard) return;
       const upper = r.bones.get("Bip01_R_UpperArm");
       const fore = r.bones.get("Bip01_R_Forearm");
       const hand = r.bones.get("Bip01_R_Hand");
@@ -211,7 +214,11 @@ export const Character = forwardRef<AvatarHandle, CharacterProps>(function Chara
         parent.updateMatrixWorld(true);
         const want = parent.worldToLocal(center);
         const parentQ = parent.getWorldQuaternion(new THREE.Quaternion());
-        const wantQ = parentQ.invert().multiply(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis));
+        // (a clipboard isn't round like a torch: turned in the character's own frame, so its face
+        // stays towards them)
+        const wantQ = clipboard
+          ? new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis.clone().applyQuaternion(parentQ.clone().invert()))
+          : parentQ.invert().multiply(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis));
         // follow the fist tightly but filter frame-to-frame IK noise
         const k = torchInit.current ? 1 - Math.exp(-dt * 30) : 1;
         torchInit.current = true;
@@ -219,15 +226,43 @@ export const Character = forwardRef<AvatarHandle, CharacterProps>(function Chara
         torchRef.current.quaternion.slerp(wantQ, k);
       }
     },
-    [torch, raiseTorch, anim],
+    [torch, raiseTorch, anim, clipboard],
   );
 
   return (
     <group {...group}>
       <Avatar ref={ref} avatarId={avatarId} anim={anim} skin={skin} onRig={onRig} afterAnimate={afterAnimate} timeScale={timeScale} />
+      {clipboard && torch === "none" && ready && <Clipboard ref={torchRef} />}
       {torch !== "none" && ready && (
         <Torch ref={torchRef} lit={torch === "lit"} light={torchLight} shadows={torchShadows} />
       )}
+    </group>
+  );
+});
+
+const CLIP_BOARD = new THREE.MeshStandardMaterial({ color: "#8a5a2b", roughness: 0.8 });
+const CLIP_PAPER = new THREE.MeshStandardMaterial({ color: "#f4f1e8", roughness: 0.9 });
+const CLIP_METAL = new THREE.MeshStandardMaterial({ color: "#b9b9b9", metalness: 0.7, roughness: 0.35 });
+/** An usher's clipboard with the breakout consent form on it, held at the fist (origin), tipped back. */
+const Clipboard = forwardRef<THREE.Group>(function Clipboard(_, ref) {
+  return (
+    <group ref={ref}>
+      <group position={[0, 0.02, 0.05]} rotation={[-1.05, 0, 0]}>
+        <mesh material={CLIP_BOARD}>
+          <boxGeometry args={[0.23, 0.31, 0.008]} />
+        </mesh>
+        <mesh material={CLIP_PAPER} position={[0, -0.01, 0.0055]}>
+          <boxGeometry args={[0.2, 0.27, 0.002]} />
+        </mesh>
+        {/* the form itself: "Breakout consent form", the sessions to tick, name and signature */}
+        <mesh position={[0, -0.01, 0.0067]}>
+          <planeGeometry args={[0.2, 0.27]} />
+          <meshStandardMaterial map={BREAKOUT_FORM()} roughness={0.9} />
+        </mesh>
+        <mesh material={CLIP_METAL} position={[0, 0.14, 0.009]}>
+          <boxGeometry args={[0.09, 0.035, 0.012]} />
+        </mesh>
+      </group>
     </group>
   );
 });

@@ -38,10 +38,12 @@ import { COUNTDOWN_VIDEO, FEAST_START } from "../data/media";
 import { axes, bindKeyboard } from "../input";
 import { SONG_VOLUME, setBillboardVolume, setSongQuiet } from "../billboardAudio";
 import { useGame, type VenueSpot } from "../store";
+import { breakoutCall, breakoutEligible, forgetOldBreakoutAnswers, type BreakoutState } from "../breakout";
 import {
   CANOPY,
   COMPOUND,
   COURT,
+  AUD,
   AUD_GROUP,
   AUD_HEADING,
   GATE,
@@ -83,6 +85,21 @@ export type Spot = {
   label: string;
 };
 
+// Friday's breakout sessions: a round table just inside the Main Hall's doors, on your left as you
+// come in, where the usher stands (auditorium frame, then compound)
+const BREAKOUT_TABLE_AUD = { x: AUD.x0 + LOBBY + 0.95, z: AUD_DOOR.z - AUD_DOOR.w / 2 - 0.9 };
+const BREAKOUT_TABLE = audToLocal(BREAKOUT_TABLE_AUD.x, BREAKOUT_TABLE_AUD.z);
+const USHER_HOME = audToLocal(BREAKOUT_TABLE_AUD.x + 0.15, BREAKOUT_TABLE_AUD.z + 0.7);
+/** At the table, the usher looks towards the doors (the auditorium's −x). */
+const USHER_FACING = (() => {
+  const [ax, az] = audToLocal(-1, 0), [bx, bz] = audToLocal(0, 0);
+  return Math.atan2(ax - bx, az - bz);
+})();
+/** Facing into the hall from its doors (the auditorium's +x): the way you walk in. */
+const INTO_HALL = USHER_FACING + Math.PI;
+/** Where the usher is (compound): you turn to face them while they talk to you. */
+const usherAt = new THREE.Vector3(USHER_HOME[0], 0, USHER_HOME[1]);
+
 export const SPOTS: Spot[] = [
   {
     id: "kiosk",
@@ -104,6 +121,13 @@ export const SPOTS: Spot[] = [
     z: (CANOPY.z0 + CANOPY.z1) / 2,
     r: 3,
     label: "Hall of Torches — share a testimony",
+  },
+  {
+    id: "breakout",
+    x: USHER_HOME[0],
+    z: USHER_HOME[1],
+    r: 1.4,
+    label: "Breakout sessions · Friday",
   },
   {
     id: "hall",
@@ -695,6 +719,8 @@ function VenueCrowd({
       lx: number;
       lz: number;
       done: boolean;
+      /** Going round someone standing in the way: which side (1 or −1), 0 when the way is clear. */
+      side?: number;
     })[]
   >([]);
   const all = useRef<Agent[]>([]);
@@ -763,9 +789,28 @@ function VenueCrowd({
     );
     advanceWanderers(roamers, step, { x: me.x, z: me.z, r: 0.55 }, arrive);
     queues.step(step);
-    // walk the new arrivals in, down the aisle and along the row, and sit them down
+    // walk the new arrivals in, down the aisle and along the row, and sit them down; on the way
+    // they step around you (and the usher with you, the breakout table and the ushers by it)
+    const [mlx, mlz] = toLocal(me.x, me.z);
+    // (x, z, radius, and which way to go round: towards (px, pz), or either way)
+    const around: [number, number, number, number?, number?][] = [
+      [BREAKOUT_TABLE[0], BREAKOUT_TABLE[1], 0.75],
+      ...HELPERS.map((h) => [h.x, h.z, 0.6] as [number, number, number]),
+    ];
+    if (useGame.getState().breakout) {
+      // you and the usher talking: nobody walks between you, they go round behind you
+      const cx = (mlx + usherAt.x) / 2, cz = (mlz + usherAt.z) / 2;
+      const half = Math.hypot(mlx - usherAt.x, mlz - usherAt.z) / 2;
+      around.push([cx, cz, half + 0.75, mlx - usherAt.x, mlz - usherAt.z]);
+    } else around.push([mlx, mlz, 0.85], [usherAt.x, usherAt.z, 0.75]);
     for (const a of arrivers.current) {
       if (a.done) continue;
+      // a turning point on the way that someone's standing on (you, talking to the usher): don't
+      // try to reach it, carry straight on to the next one
+      const walking = () => a.seg < a.path.length - 2;
+      const takenUp = (i: number) =>
+        around.some(([ox, oz, r]) => Math.hypot(a.path[i][0] - ox, a.path[i][1] - oz) < r + 0.2);
+      while (walking() && takenUp(a.seg) && Math.hypot(a.path[a.seg][0] - a.lx, a.path[a.seg][1] - a.lz) < 2.5) a.seg++;
       const [tx, tz] = a.path[a.seg];
       const dx = tx - a.lx,
         dz = tz - a.lz;
@@ -784,9 +829,45 @@ function VenueCrowd({
           a.rate = sitRate(a.avatar);
         }
       } else {
-        a.lx += (dx / d) * go;
-        a.lz += (dz / d) * go;
-        a.h = Math.atan2(dx, dz) + COMPOUND.rotation;
+        const fx = dx / d, fz = dz / d;
+        let wx = fx, wz = fz;
+        // someone standing in the way just ahead: curve round them, always on the same side until
+        // past (the last steps into a seat are along a row, where nobody's in the way)
+        let blocked = false;
+        if (walking())
+          for (const [ox, oz, r, px, pz] of around) {
+            const rx = ox - a.lx, rz = oz - a.lz;
+            const ahead = rx * fx + rz * fz;
+            const lat = rx * -fz + rz * fx;
+            if (ahead > -0.1 && ahead < r + 1.4 && Math.abs(lat) < r + 0.1) {
+              blocked = true;
+              // round the side asked for (behind you), otherwise the nearer way
+              const pref = px !== undefined && pz !== undefined ? Math.sign(-fz * px + fx * pz) : 0;
+              a.side ||= pref || (lat >= 0 ? -1 : 1);
+              // the stronger the closer they are
+              const k = 1.6 * (1 - Math.min(1, Math.max(0, ahead) / (r + 1.4))) + 0.4;
+              wx += -fz * a.side * k;
+              wz += fx * a.side * k;
+            }
+          }
+        if (!blocked) a.side = 0;
+        // at a steady walking pace whichever way round
+        const wl = Math.hypot(wx, wz) || 1;
+        a.lx += (wx / wl) * go;
+        a.lz += (wz / wl) * go;
+        // and never through anyone
+        for (const [ox, oz, r] of around) {
+          const ex = a.lx - ox, ez = a.lz - oz;
+          const e = Math.hypot(ex, ez);
+          if (e < r * 0.75 && e > 1e-3) {
+            a.lx = ox + (ex / e) * r * 0.75;
+            a.lz = oz + (ez / e) * r * 0.75;
+          }
+        }
+        // turning smoothly towards where they're going (no snapping side to side)
+        const want = Math.atan2(wx, wz) + COMPOUND.rotation;
+        const turn = Math.atan2(Math.sin(want - a.h), Math.cos(want - a.h));
+        a.h += turn * Math.min(1, step * 8);
         a.rate = walkRate(a.avatar, 1.15);
       }
       const w = toWorld(a.lx, a.lz);
@@ -847,11 +928,185 @@ function VenueCrowd({
   );
 }
 
+/**
+ * The breakout sessions table, and the usher at it. As someone who's coming onsite on Friday walks
+ * into the hall, the usher walks over and stands in front of them to ask (while you're asked, you
+ * stay put: see Venue); then goes back to the table.
+ */
+function BreakoutDesk({ you }: { you: () => { x: number; z: number } }) {
+  const usher = useRef<THREE.Group>(null);
+  const [walking, setWalking] = useState(false);
+  const pos = useRef({ x: USHER_HOME[0], z: USHER_HOME[1], heading: 0 });
+  const since = useRef(0);
+  useFrame((_, rawDt) => {
+    const dt = Math.min(rawDt, 0.05);
+    const step = useGame.getState().breakout;
+    const p = pos.current;
+    const me = you();
+    // with you: an arm's length in front of you, on the table's side; otherwise at the table
+    let tx = USHER_HOME[0], tz = USHER_HOME[1];
+    if (step) {
+      const dx = USHER_HOME[0] - me.x, dz = USHER_HOME[1] - me.z;
+      const d = Math.hypot(dx, dz) || 1;
+      tx = me.x + (dx / d) * 1.1;
+      tz = me.z + (dz / d) * 1.1;
+    }
+    const dx = tx - p.x, dz = tz - p.z;
+    const d = Math.hypot(dx, dz);
+    const moving = d > 0.06;
+    if (moving) {
+      const v = Math.min(d, 1.5 * dt);
+      p.x += (dx / d) * v;
+      p.z += (dz / d) * v;
+      p.heading = Math.atan2(dx, dz);
+    } else if (step) p.heading = Math.atan2(me.x - p.x, me.z - p.z);
+    else p.heading = USHER_FACING;
+    // there: the question (and never kept waiting if something's in the way)
+    since.current = step === "approach" ? since.current + dt : 0;
+    if (step === "approach" && (!moving || since.current > 6)) useGame.getState().set({ breakout: "ask" });
+    if (moving !== walking) setWalking(moving);
+    usherAt.set(p.x, 0, p.z);
+    if (usher.current) {
+      usher.current.position.set(p.x, FOOT_Y, p.z);
+      usher.current.rotation.y = p.heading;
+    }
+  });
+  return (
+    <>
+      {/* a small round table, cloth in the Feast's gold, with the session forms on it */}
+      <group position={[BREAKOUT_TABLE[0], 0, BREAKOUT_TABLE[1]]}>
+        <mesh position-y={0.36}>
+          <cylinderGeometry args={[0.05, 0.05, 0.72, 10]} />
+          <meshStandardMaterial color="#2a2a2a" />
+        </mesh>
+        <mesh position-y={0.74}>
+          <cylinderGeometry args={[0.38, 0.38, 0.04, 28]} />
+          <meshStandardMaterial color="#e09a2c" />
+        </mesh>
+        <mesh position-y={0.03}>
+          <cylinderGeometry args={[0.22, 0.24, 0.05, 20]} />
+          <meshStandardMaterial color="#2a2a2a" />
+        </mesh>
+        <DeskTop />
+      </group>
+      <group ref={usher}>
+        <Suspense fallback={null}>
+          <Character avatarId="bf01" robe={false} anim={walking ? "walk" : "idle"} torch="none" clipboard timeScale={walking ? 1.2 : 1} />
+        </Suspense>
+        <NameTag name="Usher" />
+      </group>
+      {/* the other ushers: one waving people in, one signing someone up */}
+      {HELPERS.map((h) => (
+        <group key={h.id} position={[h.x, FOOT_Y, h.z]} rotation-y={h.heading}>
+          <Suspense fallback={null}>
+            <Character
+              avatarId={h.avatar}
+              robe={!h.usher}
+              anim={h.anim}
+              torch={h.usher ? "none" : "unlit"}
+              torchLight={false}
+              clipboard={h.clipboard}
+            />
+          </Suspense>
+          {h.usher && <NameTag name="Usher" />}
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** On the breakout table: forms in piles, a pen, a box of wristbands and a little standing sign. */
+function DeskTop() {
+  const sign = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 96;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "#0b0b0b";
+    x.fillRect(0, 0, 256, 96);
+    x.fillStyle = "#ffc634";
+    x.fillRect(0, 86, 256, 10);
+    x.textAlign = "center";
+    x.font = "bold 30px Arial, sans-serif";
+    x.fillText("BREAKOUT", 128, 40);
+    x.fillStyle = "#ffffff";
+    x.font = "bold 22px Arial, sans-serif";
+    x.fillText("SESSIONS · FRIDAY", 128, 72);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, []);
+  useEffect(() => () => sign.dispose(), [sign]);
+  // the sign faces the doors (the auditorium's −x)
+  const toDoors = USHER_FACING;
+  return (
+    <group position-y={0.76}>
+      {[
+        [-0.12, 0.08, 0.3, 0.035],
+        [-0.1, -0.13, -0.25, 0.02],
+      ].map(([x, z, r, h], i) => (
+        <mesh key={i} position={[x, h / 2, z]} rotation-y={r}>
+          <boxGeometry args={[0.21, h, 0.29]} />
+          <meshStandardMaterial color="#f4f1e8" roughness={0.9} />
+        </mesh>
+      ))}
+      <mesh position={[0.02, 0.006, 0.12]} rotation={[0, 0.9, Math.PI / 2]}>
+        <cylinderGeometry args={[0.005, 0.005, 0.14, 6]} />
+        <meshStandardMaterial color="#1d3fb8" />
+      </mesh>
+      <group position={[0.15, 0, -0.14]} rotation-y={0.4}>
+        <mesh position-y={0.035}>
+          <boxGeometry args={[0.16, 0.07, 0.11]} />
+          <meshStandardMaterial color="#2b2b2b" />
+        </mesh>
+        <mesh position-y={0.072}>
+          <boxGeometry args={[0.14, 0.008, 0.09]} />
+          <meshStandardMaterial color="#ffc634" />
+        </mesh>
+      </group>
+      <group position={[0.12, 0, 0.1]} rotation-y={toDoors}>
+        {[1, -1].map((side) => (
+          <mesh key={side} position={[0, 0.06, side * 0.018]} rotation-x={side * 0.3}>
+            <planeGeometry args={[0.26, 0.1]} />
+            <meshBasicMaterial map={sign} side={THREE.DoubleSide} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+}
+
+/** In the auditorium frame: a point, and the way from it to another (as a compound heading). */
+const audAt = (ax: number, az: number) => audToLocal(ax, az);
+const audHeading = (from: [number, number], to: [number, number]) => {
+  const [ax, az] = audToLocal(...from), [bx, bz] = audToLocal(...to);
+  return Math.atan2(bx - ax, bz - az);
+};
+/** The other ushers (and the person being signed up), in the strip between the doors and the seats. */
+const HELPERS = (() => {
+  const t = BREAKOUT_TABLE_AUD;
+  const waver: [number, number] = [t.x - 0.25, t.z - 1.35];
+  const writer: [number, number] = [t.x - 0.45, t.z - 2.9];
+  const guest: [number, number] = [t.x + 0.05, t.z - 3.55];
+  const door: [number, number] = [AUD_DOOR.x + 0.3, AUD_DOOR.z];
+  const one = (id: string, at: [number, number], heading: number, avatar: string, anim: AnimName, usher: boolean, clipboard = false) => {
+    const [x, z] = audAt(...at);
+    return { id, x, z, heading, avatar, anim, usher, clipboard };
+  };
+  return [
+    one("waver", waver, audHeading(waver, door), "bm02", "wave", true),
+    one("writer", writer, audHeading(writer, guest), "bf04", "idle", true, true),
+    one("guest", guest, audHeading(guest, writer), "m12", "idle", false),
+  ];
+})();
+
 /** Right in front of the Main Hall doors, facing in. */
 const atDoor = () => ({ x: MAIN_DOOR.x, z: MAIN_DOOR.z + 4.5, heading: Math.PI, moving: false });
 
 export function Venue({ world }: { world: LagosWorld }) {
   const player = useGame((s) => s.player);
+  // the breakout table's usher is only there once you're in the compound
+  const area = useGame((s) => s.zone);
   const registered = useGame((s) => !!s.registered);
   const seated = useGame((s) => s.seated);
   const set = useGame((s) => s.set);
@@ -884,6 +1139,10 @@ export function Venue({ world }: { world: LagosWorld }) {
     const pg = PED_GATE;
     return [
       ...colliders(),
+      // the breakout sessions table
+      [BREAKOUT_TABLE[0] - 0.42, BREAKOUT_TABLE[1] - 0.42, BREAKOUT_TABLE[0] + 0.42, BREAKOUT_TABLE[1] + 0.42],
+      // and the ushers (and guest) standing about it
+      ...HELPERS.map((h) => [h.x - 0.12, h.z - 0.12, h.x + 0.12, h.z + 0.12]),
       // perimeter walls with their gates
       [PLOT.x0 - t, PLOT.z0, PLOT.x0 + t, pg.z0],
       [PLOT.x0 - t, pg.z1, PLOT.x0 + t, PLOT.z1 + t],
@@ -902,6 +1161,26 @@ export function Venue({ world }: { world: LagosWorld }) {
   }, []);
   const lastSpot = useRef<VenueSpot | string | null>(null);
   const insideRef = useRef(false);
+  const breakoutAsked = useRef(false);
+  /** Turning back to face into the hall after the usher's question. */
+  const faceIn = useRef(false);
+  // your breakout status, fetched from the sheet as the venue loads (fresh every visit), so the
+  // usher knows whether to come over the moment you walk in
+  const breakoutSeen = useRef<{ ticket: string; state: BreakoutState } | null>(null);
+  const ticketNow = useGame((s) => s.registered?.ticket ?? "");
+  useEffect(() => {
+    forgetOldBreakoutAnswers();
+    if (!ticketNow) return;
+    let live = true;
+    breakoutCall(ticketNow, "status")
+      .then((state) => {
+        if (live) breakoutSeen.current = { ticket: ticketNow, state };
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [ticketNow]);
   const wasSeated = useRef(false);
   const marker = useRef<THREE.Group>(null);
   const seatOffered = useGame((s) => s.venueSpot === "seat" && !s.seated);
@@ -1064,8 +1343,21 @@ export function Venue({ world }: { world: LagosWorld }) {
         seats.mine = null;
         s.heading = TO_SCREEN;
       }
-      // no walking while a booth's form is open (typing would steer you)
-      const a = useGame.getState().panel ? { x: 0, y: 0 } : axes();
+      // no walking while a booth's form is open (typing would steer you), or while the usher's
+      // talking to you about the breakout sessions: you turn to face them instead
+      const g = useGame.getState();
+      const a = g.panel || g.breakout ? { x: 0, y: 0 } : axes();
+      if (g.breakout) {
+        const want = Math.atan2(usherAt.x - s.x, usherAt.z - s.z);
+        const turn = Math.atan2(Math.sin(want - s.heading), Math.cos(want - s.heading));
+        if (Math.hypot(usherAt.x - s.x, usherAt.z - s.z) > 0.3) s.heading += turn * Math.min(1, dt * 4);
+        faceIn.current = true;
+      } else if (faceIn.current && !g.panel) {
+        // done with the usher: turn back to face into the hall, ready to walk on (unless you steer)
+        const turn = Math.atan2(Math.sin(INTO_HALL - s.heading), Math.cos(INTO_HALL - s.heading));
+        if (Math.abs(a.x) > 0.05 || Math.abs(turn) < 0.02) faceIn.current = false;
+        else s.heading += turn * Math.min(1, dt * 4);
+      }
       s.heading -= a.x * 2.4 * dt;
       const v = a.y * (a.y > 0 ? 3.0 : 1.6);
       let nx = s.x + Math.sin(s.heading) * v * dt;
@@ -1113,6 +1405,25 @@ export function Venue({ world }: { world: LagosWorld }) {
         ? "yard"
         : "street";
     if (zone !== useGame.getState().zone) set({ zone });
+    // through the doors with a torch, coming onsite on Friday and not asked yet: the usher comes
+    // over about the breakout sessions (once a visit; the server has the last word on who's asked)
+    if (inside && !seated && !breakoutAsked.current && localToAud(s.x, s.z)[0] > AUD.x0 + LOBBY + 1.1) {
+      breakoutAsked.current = true;
+      const g = useGame.getState();
+      const ticket = g.registered?.ticket;
+      // what the sheet said as you arrived (if it's in); then asked again as the usher comes over
+      const seen = breakoutSeen.current && breakoutSeen.current.ticket === ticket ? breakoutSeen.current.state : null;
+      const skip = seen && (!seen.eligible || seen.answered);
+      if (ticket && breakoutEligible(g.registered) && !skip && !g.breakout) {
+        set({ breakout: "approach" });
+        breakoutCall(ticket, "status")
+          .then((r) => {
+            if (r.eligible && !r.answered) return;
+            set({ breakout: null });
+          })
+          .catch(() => set({ breakout: null }));
+      }
+    }
     // the song is background music: 5% everywhere, a touch lower in the hall (the LED wall is on)
     setBillboardVolume(inside ? 3 : SONG_VOLUME);
     if (inside !== insideRef.current) {
@@ -1173,6 +1484,23 @@ export function Venue({ world }: { world: LagosWorld }) {
       wantLook = head
         .clone()
         .add(new THREE.Vector3(-Math.sin(yaw) * 2, -0.1, -Math.cos(yaw) * 2));
+    }
+    // the usher talking to you: the two of you seen from just inside the doors, looking into the
+    // hall the way you came in (the table on your left), high enough to see over people. Behind
+    // you, the camera would end up out through the wall by the doors.
+    if (!seated && useGame.getState().breakout) {
+      const [ax, az] = localToAud(s.x, s.z), [ux, uz] = localToAud(usherAt.x, usherAt.z);
+      const mx = (ax + ux) / 2, mz = (az + uz) / 2;
+      // (in the lobby, only through its opening: the lobby wall is either side of the doors)
+      const camX = Math.max(AUD.x0 + 0.35, mx - 2.3);
+      const open = AUD_DOOR.w / 2 - 0.2;
+      const camZ = camX < AUD.x0 + LOBBY + 0.15 ? THREE.MathUtils.clamp(mz + 0.55, AUD_DOOR.z - open, AUD_DOOR.z + open) : mz + 0.55;
+      const [cx, cz] = audToLocal(camX, camZ);
+      const [lx, lz] = audToLocal(mx + 0.4, mz);
+      wantPos = new THREE.Vector3(cx, 2.8, cz);
+      wantLook = new THREE.Vector3(lx, 1.0, lz);
+      o.yaw = 0;
+      o.pitch = 0;
     }
     // keep the camera inside the hall walls when you're in there, and above the ground outside
     if (inside || seated) {
@@ -1251,6 +1579,7 @@ export function Venue({ world }: { world: LagosWorld }) {
     }
   });
 
+  const you = useMemo(() => () => state.current, []);
   const where = useMemo(() => {
     const v = new THREE.Vector3();
     return () =>
@@ -1259,6 +1588,11 @@ export function Venue({ world }: { world: LagosWorld }) {
   return (
     <>
       <VenueCrowd world={world} where={where} />
+      {area !== "street" && (
+        <group position={[COMPOUND.center[0], 0, COMPOUND.center[1]]} rotation-y={COMPOUND.rotation}>
+          <BreakoutDesk you={you} />
+        </group>
+      )}
       <HallCuller />
       <group
         position={[COMPOUND.center[0], 0, COMPOUND.center[1]]}

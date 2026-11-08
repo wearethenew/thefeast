@@ -28,7 +28,7 @@ export type Telemetry = {
   flightT: number;
 };
 
-export type VenueSpot = "gate" | "kiosk" | "court" | "walkway" | "hall" | "seat" | null;
+export type VenueSpot = "gate" | "kiosk" | "court" | "walkway" | "hall" | "seat" | "breakout" | null;
 
 /** This browser's registration, kept in localStorage so the torch is still yours next visit. */
 /** Your registration on this browser: referral ID, check-in pass (and its QR image). */
@@ -94,6 +94,11 @@ type GameState = {
   spawnAt: "street" | "door";
   /** Bumped to bring you to the Main Hall doors while you're already walking the compound. */
   toDoor: number;
+  /**
+   * Friday's breakout sessions, with the attendant in the Main Hall: walking over to you
+   * ("approach"), asking ("ask"), or the sessions board open ("board"). You stay put meanwhile.
+   */
+  breakout: "approach" | "ask" | "board" | null;
   /** The visitor has taken the aerial camera (drag/zoom); "Reset view" hands it back. */
   freeCam: boolean;
   /** Bumped to jump the opening film to the Fusion Centre. */
@@ -161,6 +166,7 @@ export const useGame = create<GameState>((set, get) => ({
   freeCam: false,
   spawnAt: "street",
   toDoor: 0,
+  breakout: null,
   tele: { speedKmh: 0, remainingM: 0, routeM: 0, heading: 0, x: 0, z: 0, street: "", flightT: 0 },
   setStage: (stage) => set({ stage }),
   updatePlayer: (p) => set({ player: { ...get().player, ...p } }),

@@ -102,15 +102,16 @@ function Loader() {
   return <LoaderCard progress={reached.current} label={LOADING} />;
 }
 
-/** Pick a female or male avatar: over the opening film and while walking (not over a form, nor seated). */
+/** Pick a female or male avatar: over the opening film and while walking (not over a form, nor seated, nor while the usher talks to you). */
 function PickAvatar() {
   const stage = useGame((s) => s.stage);
   const panel = useGame((s) => s.panel);
   const seated = useGame((s) => s.seated);
+  const breakout = useGame((s) => s.breakout);
   const warm = useGame((s) => s.warm);
   const shot = useGame((s) => s.procShot?.id);
   const small = useSmallScreen();
-  if ((stage !== "title" && stage !== "venue") || panel || seated || !warm) return null;
+  if ((stage !== "title" && stage !== "venue") || panel || seated || breakout || !warm) return null;
   // not over the film's flight and campus shots: only from the Fusion Centre on
   if (stage === "title" && shot !== "fusion") return null;
   // centred at the bottom, above the film's bar and the walking prompts; on a phone while walking,

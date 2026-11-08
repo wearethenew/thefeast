@@ -8,6 +8,8 @@ import { input } from "../input";
 import { useGame } from "../store";
 import { SPOTS } from "../world/Venue";
 import { InviteFriend } from "./InviteFriend";
+import { BreakoutPanel } from "./BoothPanels";
+import { breakoutCall } from "../breakout";
 import { useTouch } from "./useSmallScreen";
 
 // Overlay for the Fusion Centre: interaction prompts, the desks' panels, the pass, and the
@@ -804,6 +806,7 @@ export function VenueUI() {
       if (registered) setOpen(null);
       else set({ panel: "register" });
     } else if (spot === "kiosk") set({ panel: "register" });
+    else if (spot === "breakout") set({ breakout: "board" });
     else if (spot.startsWith("tent:")) set({ panel: spot.slice(5) });
     else setOpen(spot);
   };
@@ -813,14 +816,15 @@ export function VenueUI() {
     const id = setInterval(() => {
       if (input.action) {
         input.action = false;
-        activate();
+        if (!useGame.getState().breakout) activate();
       }
     }, 80);
     return () => clearInterval(id);
   });
 
-  // a form open (a booth's, or one of the spots here): nothing else on screen
-  const form = !!boothPanel || !!open;
+  // a form open (a booth's, or one of the spots here), or the usher talking to you: nothing else on screen
+  const breakout = useGame((s) => s.breakout);
+  const form = !!boothPanel || !!open || !!breakout;
   return (
     <div className="pointer-events-none fixed inset-0 p-3 sm:p-5">
       {!form && <HallSound />}
@@ -927,8 +931,45 @@ export function VenueUI() {
         </>
       )}
 
+      {breakout === "ask" && <UsherAsks />}
+      {breakout === "board" && <BreakoutPanel onClose={() => set({ breakout: null })} />}
       {open === "walkway" && <TestimonyPanel onClose={() => setOpen(null)} />}
       {open === "court" && <CourtPanel onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
+/**
+ * The usher at the breakout table, by you as you walk into the hall: would you like to register
+ * for a breakout session? Yes opens the sessions board; no is kept (and you're not asked again).
+ */
+function UsherAsks() {
+  const set = useGame((s) => s.set);
+  const ticket = useGame((s) => s.registered?.ticket ?? "");
+  const firstName = useGame((s) => s.registered?.firstName ?? "");
+  const [busy, setBusy] = useState(false);
+  const no = async () => {
+    setBusy(true);
+    // kept on the sheet (not asked again this visit either way)
+    await breakoutCall(ticket, "no").catch(() => {});
+    set({ breakout: null });
+  };
+  return (
+    <div className="pointer-events-auto absolute inset-x-3 bottom-6 mx-auto max-w-md sm:bottom-10">
+      <div className="glass rounded-2xl p-5">
+        <div className="eyebrow text-[11px]">Usher · Breakout sessions</div>
+        <p className="mt-2 text-[17px] font-semibold leading-snug">
+          {firstName ? `Welcome, ${firstName}! ` : "Welcome! "}Would you like to register for a breakout session on Friday?
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button className="btn-gold py-3 text-[15px]" disabled={busy} onClick={() => set({ breakout: "board" })}>
+            Yes
+          </button>
+          <button className="btn-ghost py-3 text-[15px]" disabled={busy} onClick={no}>
+            {busy ? "…" : "No, thanks"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

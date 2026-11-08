@@ -28,7 +28,8 @@ import { cityLights } from "./cityGeometry";
 import { COMPOUND, toWorld } from "./compound";
 import type { LagosWorld } from "./lagosData";
 import { GROUPS, streamAt, type Stream } from "./processionData";
-import { CAMPUS_SETS, CampusSet, campusStream } from "./CampusSets";
+import { CAMPUS_SETS, CampusSet, campusStream, flierSpot } from "./CampusSets";
+import { FlierBoard, type FlierSpot } from "./FlierBoard";
 import { useBoardZoom } from "./BoothBoards";
 
 // The opening film (the title screen): real flights bringing people in from abroad, a few quick
@@ -148,6 +149,31 @@ const JET_SHOTS: JetShot[] = [
     look.copy(p).setY(p.y + 2);
   } },
 ];
+/**
+ * The Feast flier at the airport: two big boards on the far side of the runway from the landing
+ * shot's camera, one up the runway behind the jet coming down and one by where it touches down.
+ */
+const AIRPORT_FLIERS: FlierSpot[] = [-120, -20].map((along) => {
+  const p = RUNWAY.td.clone().addScaledVector(RUNWAY.dir, along).addScaledVector(RUNWAY_SIDE, -50);
+  const cam = RUNWAY.td.clone().addScaledVector(RUNWAY.dir, 70).addScaledVector(RUNWAY_SIDE, 62);
+  return { x: p.x, z: p.z, faceX: cam.x, faceZ: cam.z, w: 14, bottom: 4 };
+});
+/**
+ * And round the Fusion Centre, one on each side (compound frame): across the main road, across Acme
+ * Road from the gate, by the lane past the basketball court and out beyond the car park. The aerial
+ * always looks at the hall, so as it sweeps round there's one beyond the hall or in front of it;
+ * the flier is on both faces, turned to the hall.
+ */
+const FUSION_FLIERS: FlierSpot[] = [
+  [-61, 26],
+  [-3, 74],
+  [71, 22],
+  [-3, -68],
+].map(([x, z]) => {
+  const p = toWorld(x, z);
+  const c = toWorld(-3, 22);
+  return { x: p.x, z: p.z, faceX: c.x, faceZ: c.z, w: 8, bottom: 7, both: true };
+});
 const JET_TOTAL = JET_SHOTS.reduce((a, s) => a + s.len, 0);
 /** Which shot is on at jet time t (the last one holds until the film moves on). */
 function jetShotAt(t: number) {
@@ -678,8 +704,12 @@ export function OpeningFilm({ world }: { world: LagosWorld }) {
       {(shotNow ?? "jets") === "jets" && (
         <>
           <Jets clock={jetClock} />
+          {AIRPORT_FLIERS.map((f, i) => (
+            <FlierBoard key={i} {...f} />
+          ))}
         </>
       )}
+      {shotNow === "fusion" && FUSION_FLIERS.map((f, i) => <FlierBoard key={i} {...f} />)}
       {/* over each campus's road: the green direction sign (who they are, where they're going),
           then the ministers' billboard further on */}
       {/* the set on screen, and the next one already built out of sight, so a cut never stalls */}
@@ -691,6 +721,7 @@ export function OpeningFilm({ world }: { world: LagosWorld }) {
               <SetTraffic st={campus.get(def.id)!} side={def.walk > 0 ? -1 : 1} seed={def.sign + def.origin[0]} active={def === onStream} />
               {/* Ikeja is Ogba's own neighbourhood: no sign needed there */}
               {GROUPS.find((g) => g.id === def.id)?.road && <DirectionSign st={campus.get(def.id)!} s={def.sign} />}
+              <FlierBoard {...flierSpot(def, campus.get(def.id)!)} />
               {/* its posters load on their own: never hold up the film */}
               <Suspense fallback={null}>
                 <MinisterGantry st={campus.get(def.id)!} s={def.sign + 70} />

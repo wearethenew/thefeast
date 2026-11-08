@@ -80,14 +80,33 @@ async function ensureTab(tab: string, headers: string[]) {
   return cols;
 }
 
-/** Append one row to a tab, each value under its header (columns added by hand are left blank). */
+const cell = (v: unknown) => (v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+
+/**
+ * Append one row to a tab, each value under its header (columns added by hand are left blank).
+ * Returns the sheet row it went in (1 is the header row), or null if the sheet didn't say.
+ */
 export async function appendRow(tab: string, headers: string[], row: Record<string, unknown>) {
   const cols = await ensureTab(tab, headers);
-  const values = [cols.map((h) => {
-    const v = headers.includes(h) ? row[h] : null;
-    return v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
-  })];
-  await call(`/values/${encodeURIComponent(tab)}!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, { method: "POST", body: JSON.stringify({ values }) });
+  const values = [cols.map((h) => cell(headers.includes(h) ? row[h] : null))];
+  const res = (await call(`/values/${encodeURIComponent(tab)}!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, { method: "POST", body: JSON.stringify({ values }) })) as {
+    updates?: { updatedRange?: string };
+  };
+  const m = res.updates?.updatedRange?.match(/![A-Z]+(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Fill in some cells of one row (sheet row `at`, found by appendRow), each under its header.
+ * Only ever used on a row just appended: no other row is touched.
+ */
+export async function updateCells(tab: string, headers: string[], at: number, values: Record<string, unknown>) {
+  if (at < 2) return;
+  const cols = await ensureTab(tab, headers);
+  const data = Object.entries(values)
+    .filter(([h]) => cols.includes(h))
+    .map(([h, v]) => ({ range: `${tab}!${colLetter(cols.indexOf(h))}${at}`, values: [[cell(v)]] }));
+  if (data.length) await call("/values:batchUpdate", { method: "POST", body: JSON.stringify({ valueInputOption: "RAW", data }) });
 }
 
 /** Every row of a tab, as { header: value }. */

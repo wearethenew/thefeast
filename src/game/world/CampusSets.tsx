@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { fillerMaterial } from "./City";
+import type { FlierSpot } from "./FlierBoard";
 import { Palm } from "./FusionCentre";
 import { GROUPS, resample, streamAt, type Stream } from "./processionData";
 
@@ -22,6 +23,8 @@ export type CampusSetDef = {
   sign: number;
   /** The half of the road the walkers keep to (the traffic has the other): the camera's side. */
   walk: 1 | -1;
+  /** The Feast flier's roadside board: where along the route, how far left of the centreline (+ left of travel), its width and how high it stands. */
+  flier: { s: number; left: number; w: number; bottom: number };
   drone: DroneMove;
 };
 
@@ -47,6 +50,8 @@ export const CAMPUS_SETS: CampusSetDef[] = [
     path: [[-260, 0], [-80, 6], [80, -4], [260, 8]],
     half: 9,
     seconds: 3.2,
+    // on the tower side, just past where the drone looks: square on to it across the lagoon
+    flier: { s: 142, left: 15, w: 10, bottom: 5 },
     drone: (u, st, o) => {
       at(st, 90 + u * 9, 0, -70, 34, o.pos);
       at(st, 120 + u * 9, 0, 10, 4, o.look);
@@ -61,6 +66,8 @@ export const CAMPUS_SETS: CampusSetDef[] = [
     path: [[-220, 0], [-60, 0], [60, 12], [220, 16]],
     half: 7,
     seconds: 3.2,
+    // over the stalls on the right, before the green sign (and clear of it from the camera)
+    flier: { s: 160, left: 9.5, w: 6, bottom: 5.5 },
     drone: (u, st, o) => {
       at(st, 100 + u * 4, -12, 1.5, 6.5, o.pos);
       at(st, 100 + u * 4, 30, 0, 3, o.look);
@@ -75,6 +82,8 @@ export const CAMPUS_SETS: CampusSetDef[] = [
     path: [[-220, 60], [-120, 20], [-30, 40], [60, 0], [160, 30], [240, 0]],
     half: 6,
     seconds: 3.4,
+    // across the road from the drone, by the bend it descends to
+    flier: { s: 152, left: -11, w: 10, bottom: 7 },
     drone: (u, st, o) => {
       at(st, 120 + u * 6, -110 + u * 12, 70, 120 - u * 13, o.pos);
       at(st, 140 + u * 6, 0, 0, 0, o.look);
@@ -90,6 +99,8 @@ export const CAMPUS_SETS: CampusSetDef[] = [
     path: [[-200, -40], [-60, 0], [60, 10], [200, 50]],
     half: 6,
     seconds: 3.2,
+    // on the far side of the road, just short of the green sign, up over the trees
+    flier: { s: 142, left: -8, w: 8, bottom: 9 },
     drone: (u, st, o) => {
       at(st, 100 + u * 4, 0, 16 - u * 3.5, 52 - u * 2.5, o.pos);
       at(st, 138 + u * 4, 0, 0, 2, o.look);
@@ -104,6 +115,8 @@ export const CAMPUS_SETS: CampusSetDef[] = [
     path: [[-220, 20], [-80, -10], [60, 10], [220, -20]],
     half: 6,
     seconds: 3.2,
+    // beyond the crowd, off the right kerb: where the orbit looks halfway round
+    flier: { s: 158, left: -8, w: 8, bottom: 5 },
     drone: (u, st, o) => {
       const a = 2.4 + u * 0.32;
       at(st, 120 + u * 2.5, Math.cos(a) * 38, Math.sin(a) * 38, 14, o.pos);
@@ -117,6 +130,14 @@ export function campusStream(def: CampusSetDef): Stream {
   const g = GROUPS.find((x) => x.id === def.id)!;
   const pts = def.path.map(([x, z]) => [def.origin[0] + x, def.origin[1] + z] as [number, number]);
   return resample(pts, pts.map(() => def.half), g);
+}
+
+/** Where a campus's flier board stands, turned to the drone as it is halfway through the shot. */
+export function flierSpot(def: CampusSetDef, st: Stream): FlierSpot {
+  const p = at(st, def.flier.s, 0, def.flier.left, 0, new THREE.Vector3());
+  const cam = { pos: new THREE.Vector3(), look: new THREE.Vector3() };
+  def.drone(def.seconds / 2, st, cam);
+  return { x: p.x, z: p.z, faceX: cam.pos.x, faceZ: cam.pos.z, w: def.flier.w, bottom: def.flier.bottom };
 }
 
 // ---------- building blocks ----------
