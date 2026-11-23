@@ -95,7 +95,7 @@ type GameState = {
   /** Bumped to bring you to the Main Hall doors while you're already walking the compound. */
   toDoor: number;
   /**
-   * Friday's breakout sessions, with the attendant in the Main Hall: walking over to you
+   * Saturday's breakout sessions, with the attendant in the Main Hall: walking over to you
    * ("approach"), asking ("ask"), or the sessions board open ("board"). You stay put meanwhile.
    */
   breakout: "approach" | "ask" | "board" | null;

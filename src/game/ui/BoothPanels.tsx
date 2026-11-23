@@ -17,8 +17,8 @@ const RETURN_LABEL: Record<string, string> = { merch: "your pre-order", game: "c
 // game, and the help desks. One layer for the opening film and for walking the compound.
 
 const KEY_DETAILS = [
-  { day: "Fri 11 Dec", what: "Prayer & Worship Night · Breakout sessions" },
-  { day: "Sat 12 Dec", what: "The Word: Pastor Shola Okodugha & Min. Kaestrings" },
+  { day: "Fri 11 Dec", what: "Prayer & Worship Night" },
+  { day: "Sat 12 Dec", what: "The Word: Pastor Shola Okodugha & Min. Kaestrings · Breakout sessions" },
   { day: "Sun 13 Dec", what: "The Word: Pastor Shola Okodugha & Min. Sunmisola Agbebi-Okeleye" },
 ];
 /** How you'll attend onsite: the days, as stored and as said. */

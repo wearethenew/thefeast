@@ -959,7 +959,7 @@ function UsherAsks() {
       <div className="glass rounded-2xl p-5">
         <div className="eyebrow text-[11px]">Usher · Breakout sessions</div>
         <p className="mt-2 text-[17px] font-semibold leading-snug">
-          {firstName ? `Welcome, ${firstName}! ` : "Welcome! "}Would you like to register for a breakout session on Friday?
+          {firstName ? `Welcome, ${firstName}! ` : "Welcome! "}Would you like to register for a breakout session on Saturday?
         </p>
         <div className="mt-4 grid grid-cols-2 gap-2">
           <button className="btn-gold py-3 text-[15px]" disabled={busy} onClick={() => set({ breakout: "board" })}>

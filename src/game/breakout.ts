@@ -1,13 +1,13 @@
 import type { Registration } from "./store";
 
-// Friday's breakout sessions, on this side: who the attendant stops. What they've answered is only
+// Saturday's breakout sessions, on this side: who the attendant stops. What they've answered is only
 // ever on the sheet (/api/breakout), asked for afresh on every visit.
 
 /**
- * Holds a torch (registered) and comes onsite on Friday: the pass says which days ("Fri 11 Dec",
+ * Holds a torch (registered) and comes onsite on Saturday: the pass says which days ("Sat 12 Dec",
  * "Fri · Sat"…). A torch from before the days were kept on the phone is asked about on the server.
  */
-export const breakoutEligible = (r: Registration | null) => !!r?.ticket && !r.online && (!r.days || /\bFri\b/.test(r.days));
+export const breakoutEligible = (r: Registration | null) => !!r?.ticket && !r.online && (!r.days || /\bSat\b/.test(r.days));
 
 /**
  * Answers used to be kept on this browser too ("torch:breakout:<ticket>"), which stopped the usher

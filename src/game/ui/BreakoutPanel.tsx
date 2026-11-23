@@ -6,7 +6,7 @@ import { breakoutCall, type BreakoutState } from "../breakout";
 import { useGame } from "../store";
 import { Shell } from "./Shell";
 
-// ---------- Breakout sessions (Friday, in the Main Hall) ----------
+// ---------- Breakout sessions (Saturday, in the Main Hall) ----------
 
 /**
  * The breakout sessions board the hall's attendant opens: each session, what it's about and how
@@ -46,11 +46,11 @@ export function BreakoutPanel({ onClose, ticket: given, firstName: givenName, do
   };
   const booked = state?.booked ? BREAKOUTS.find((b) => b.id === state.booked!.session) : null;
   return (
-    <Shell kicker="Friday 11 Dec · Breakout sessions" title={booked ? "You're in! 🔥" : "Pick your breakout session"} onClose={onClose} wide>
+    <Shell kicker="Saturday 12 Dec · Breakout sessions" title={booked ? "You're in! 🔥" : "Pick your breakout session"} onClose={onClose} wide>
       {!state ? (
         <p className="text-white/70">{err || "Getting the sessions…"}</p>
       ) : !state.eligible ? (
-        <p>Breakout sessions are for everyone joining us onsite on Friday, 11 December.</p>
+        <p>Breakout sessions are for everyone joining us onsite on Saturday, 12 December.</p>
       ) : booked ? (
         <div>
           <p>
@@ -68,7 +68,7 @@ export function BreakoutPanel({ onClose, ticket: given, firstName: givenName, do
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-white/80">Choose the session you&apos;ll join on Friday. Places are limited: each session shows how full it is.</p>
+          <p className="text-white/80">Choose the session you&apos;ll join on Saturday. Places are limited: each session shows how full it is.</p>
           {BREAKOUTS.map((b) => {
             const s = state.sessions.find((x) => x.id === b.id);
             const taken = s?.taken ?? 0;

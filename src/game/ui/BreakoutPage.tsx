@@ -13,7 +13,7 @@ const readTicket = (v: string) => {
 };
 
 /**
- * thefeast.wearethenew.org/breakout: register for a Friday breakout session without walking into
+ * thefeast.wearethenew.org/breakout: register for a Saturday breakout session without walking into
  * the hall. Your ticket ID (on your pass) says who you are; the torch on this browser, if there is
  * one, fills it in. Who can book is checked on the server, as in the hall.
  */
@@ -45,10 +45,10 @@ export default function BreakoutPage() {
           </button>
         </div>
       ) : (
-        <Shell kicker="Friday 11 Dec · Breakout sessions" title="Register for a breakout session" onClose={() => (window.location.href = "/")}>
+        <Shell kicker="Saturday 12 Dec · Breakout sessions" title="Register for a breakout session" onClose={() => (window.location.href = "/")}>
           <form onSubmit={go} className="space-y-3">
             <p className="text-white/80">
-              Breakout sessions are for everyone joining us onsite on Friday, 11 December. Enter the ticket ID on your pass (it&apos;s in your registration email) to pick
+              Breakout sessions are for everyone joining us onsite on Saturday, 12 December. Enter the ticket ID on your pass (it&apos;s in your registration email) to pick
               your session.
             </p>
             <div>

@@ -85,7 +85,7 @@ export type Spot = {
   label: string;
 };
 
-// Friday's breakout sessions: a round table just inside the Main Hall's doors, on your left as you
+// Saturday's breakout sessions: a round table just inside the Main Hall's doors, on your left as you
 // come in, where the usher stands (auditorium frame, then compound)
 const BREAKOUT_TABLE_AUD = { x: AUD.x0 + LOBBY + 0.95, z: AUD_DOOR.z - AUD_DOOR.w / 2 - 0.9 };
 const BREAKOUT_TABLE = audToLocal(BREAKOUT_TABLE_AUD.x, BREAKOUT_TABLE_AUD.z);
@@ -127,7 +127,7 @@ export const SPOTS: Spot[] = [
     x: USHER_HOME[0],
     z: USHER_HOME[1],
     r: 1.4,
-    label: "Breakout sessions · Friday",
+    label: "Breakout sessions · Saturday",
   },
   {
     id: "hall",
@@ -929,7 +929,7 @@ function VenueCrowd({
 }
 
 /**
- * The breakout sessions table, and the usher at it. As someone who's coming onsite on Friday walks
+ * The breakout sessions table, and the usher at it. As someone who's coming onsite on Saturday walks
  * into the hall, the usher walks over and stands in front of them to ask (while you're asked, you
  * stay put: see Venue); then goes back to the table.
  */
@@ -1031,7 +1031,7 @@ function DeskTop() {
     x.fillText("BREAKOUT", 128, 40);
     x.fillStyle = "#ffffff";
     x.font = "bold 22px Arial, sans-serif";
-    x.fillText("SESSIONS · FRIDAY", 128, 72);
+    x.fillText("SESSIONS · SATURDAY", 128, 72, 236);
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
     return t;
@@ -1405,7 +1405,7 @@ export function Venue({ world }: { world: LagosWorld }) {
         ? "yard"
         : "street";
     if (zone !== useGame.getState().zone) set({ zone });
-    // through the doors with a torch, coming onsite on Friday and not asked yet: the usher comes
+    // through the doors with a torch, coming onsite on Saturday and not asked yet: the usher comes
     // over about the breakout sessions (once a visit; the server has the last word on who's asked)
     if (inside && !seated && !breakoutAsked.current && localToAud(s.x, s.z)[0] > AUD.x0 + LOBBY + 1.1) {
       breakoutAsked.current = true;

@@ -20,7 +20,7 @@ export const TABLES = {
   winners: { tab: "Winners", headers: ["created_at", "game", "answer", "guesses", "name", "email", "phone"] },
   volunteers: { tab: "Volunteers", headers: ["created_at", "name", "contact", "teams"] },
   testimonies: { tab: "Testimonies", headers: ["created_at", "name", "text", "published"] },
-  // Friday's breakout sessions: one row per answer to the attendant ("yes" with the session, or
+  // Saturday's breakout sessions: one row per answer to the attendant ("yes" with the session, or
   // "no"); number is the place among all breakout registrations, session_number within the session
   breakouts: { tab: "Breakouts", headers: ["created_at", "number", "session", "session_number", "status", "answer", "ticket_id", "first_name", "last_name", "email", "phone"] },
   invites: { tab: "Invites", headers: ["created_at", "id", "from_name", "friend_name", "friend_email", "pickup_label", "pickup_lat", "pickup_lon"] },

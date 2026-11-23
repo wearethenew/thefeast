@@ -27,7 +27,7 @@ export function BREAKOUT_FORM() {
   x.fillText("BREAKOUT CONSENT FORM", W / 2, 92);
   x.font = "15px Arial, sans-serif";
   x.fillStyle = "#555";
-  x.fillText("Friday 11 December · Onsite only", W / 2, 116);
+  x.fillText("Saturday 12 December · Onsite only", W / 2, 116);
   // fields
   x.textAlign = "left";
   x.fillStyle = ink;

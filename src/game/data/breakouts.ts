@@ -1,6 +1,6 @@
-// Friday's breakout sessions (11 Dec, onsite only). Each has its own capacity; 750 places in all.
+// Saturday's breakout sessions (12 Dec, onsite only). Each has its own capacity; 750 places in all.
 // Registration happens in the Main Hall: the attendant at the round table just inside the doors
-// stops onsite Friday registrants as they walk in (see Venue's Attendant and /api/breakout).
+// stops onsite Saturday registrants as they walk in (see Venue's Attendant and /api/breakout).
 
 export type Breakout = { id: string; name: string; tag: string; about: string; cap: number; /** Who it's for, shown in brackets after the name. */ ages?: string };
 

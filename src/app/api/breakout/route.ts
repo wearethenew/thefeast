@@ -5,8 +5,8 @@ import { emailConfigured, sendEmail } from "@/server/email";
 import { fill, findOne, rowsOf, save } from "@/server/storage";
 import { bad, clean } from "@/server/validate";
 
-// Friday's breakout sessions, booked with the attendant in the Main Hall. Only onsite registrants
-// coming on Friday can book (checked here against their registration, by ticket ID); one place
+// Saturday's breakout sessions, booked with the attendant in the Main Hall. Only onsite registrants
+// coming on Saturday can book (checked here against their registration, by ticket ID); one place
 // each, while a session has room. Every answer is kept: a "no" too.
 //   { ticket, action: "status" }            → eligible?, already answered?, each session's places
 //   { ticket, action: "no" }                → "not now", kept
@@ -25,8 +25,8 @@ export async function POST(req: Request) {
   const ticket = `TF26-${m[1]}-${m[2]}`;
   const reg = await findOne("registrations", "ticket_id", ticket);
   if (!reg) return bad("We couldn't find your registration", 404);
-  // onsite, and with us on Friday
-  const eligible = String(reg.attendance) === "onsite" && pickedDays(reg.days).some((d) => d.id === "fri");
+  // onsite, and with us on Saturday
+  const eligible = String(reg.attendance) === "onsite" && pickedDays(reg.days).some((d) => d.id === "sat");
 
   const rows = await rowsOf("breakouts");
   const state = () => {
