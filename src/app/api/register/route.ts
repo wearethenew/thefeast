@@ -1,3 +1,4 @@
+import { INSTALLATIONS } from "@/game/data/places";
 import { randomInt } from "crypto";
 import QRCode from "qrcode";
 import { after } from "next/server";
@@ -103,6 +104,9 @@ export async function POST(req: Request) {
   if (!isEmail(email)) return bad("Please add a valid email");
   if (phone.replace(/\D/g, "").length < 7) return bad("Please add a phone number");
   if (!country) return bad("Please add your country");
+  // members: which installation they attend (one of ours)
+  const installation = body.member === true ? (INSTALLATIONS.find((i) => i.name === body.installation)?.name ?? "") : "";
+  if (body.member === true && !installation) return bad("Which installation do you attend?");
   const attendance = body.attendance === "online" ? "online" : body.attendance === "onsite" ? "onsite" : "";
   if (!attendance) return bad("How will you be attending?");
   const picked = attendance === "onsite" ? pickedDays(body.days) : [];
@@ -151,6 +155,7 @@ export async function POST(req: Request) {
     // asked from Nov 2026 (older pages don't send them: left blank rather than turned away)
     church_member: typeof body.member === "boolean" ? body.member : null,
     first_time: typeof body.firstTime === "boolean" ? body.firstTime : null,
+    installation,
   });
   return Response.json({ ok: true, code, ticket, passDays, qr: "data:image/png;base64," + qr.toString("base64"), emailed });
 }

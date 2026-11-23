@@ -2,13 +2,14 @@
 // Registration happens in the Main Hall: the attendant at the round table just inside the doors
 // stops onsite Friday registrants as they walk in (see Venue's Attendant and /api/breakout).
 
-export type Breakout = { id: string; name: string; tag: string; about: string; cap: number };
+export type Breakout = { id: string; name: string; tag: string; about: string; cap: number; /** Who it's for, shown in brackets after the name. */ ages?: string };
 
 export const BREAKOUTS: Breakout[] = [
   {
     id: "serene",
     name: "Serene",
     tag: "Soul Wellness",
+    ages: "Ages 18–26",
     about:
       "A safe and confidential space for those navigating anxiety, grief, or other mental health challenges. You are seen, you are heard, and you don't have to navigate it alone. Strictly onsite.",
     cap: 100,
@@ -47,6 +48,9 @@ export const BREAKOUTS: Breakout[] = [
   },
 ];
 
-/** "Serene (Soul Wellness)", "Women in Ministry". */
-export const breakoutTitle = (b: Breakout) => (b.tag === b.name ? b.name : `${b.name} (${b.tag})`);
+/** "Serene (Ages 18–26)", "Bezalel". */
+export const breakoutName = (b: Breakout) => (b.ages ? `${b.name} (${b.ages})` : b.name);
+/** "Serene (Ages 18–26) · Soul Wellness", "Bezalel (Creatives)", "Women in Ministry". */
+export const breakoutTitle = (b: Breakout) =>
+  b.tag === b.name ? breakoutName(b) : b.ages ? `${breakoutName(b)} · ${b.tag}` : `${b.name} (${b.tag})`;
 

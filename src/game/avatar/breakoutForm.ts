@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { BREAKOUTS } from "../data/breakouts";
+import { BREAKOUTS, breakoutName } from "../data/breakouts";
 
 // The paper on the ushers' clipboards (and on the breakout table): a printed breakout consent form,
 // drawn once and shared.
@@ -48,7 +48,7 @@ export function BREAKOUT_FORM() {
     x.strokeStyle = ink;
     x.lineWidth = 2;
     x.strokeRect(36, y - 14, 16, 16);
-    x.fillText(b.tag === b.name ? b.name : `${b.name} (${b.tag})`, 62, y);
+    x.fillText(b.tag === b.name || b.ages ? breakoutName(b) : `${b.name} (${b.tag})`, 62, y);
   });
   // a tick in one of them, already filled in
   x.strokeStyle = "#1d3fb8";

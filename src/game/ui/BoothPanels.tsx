@@ -1,10 +1,10 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { BREAKOUTS, breakoutTitle } from "../data/breakouts";
-import { breakoutCall, type BreakoutState } from "../breakout";
-import { MERCH } from "../data/merch";
-import { MerchArt } from "./MerchArt";
+import { useMemo, useState } from "react";
+import { INSTALLATIONS } from "../data/places";
+import { BoardContext, Shell, field, label, post } from "./Shell";
+import { MerchPanel } from "./MerchPanel";
+import { BreakoutPanel } from "./BreakoutPanel";
 import { WEND_ANSWERS, WEND_TRIES } from "../data/wend";
 import { useGame } from "../store";
 import { TentPanel } from "./VenueUI";
@@ -30,42 +30,9 @@ export const DAYS = [
 ];
 const COUNTRIES = ["Nigeria", "United Kingdom", "United States", "Canada", "Ghana", "South Africa", "Kenya", "Ireland", "Germany", "United Arab Emirates", "Other"];
 
-/** On a booth's board (3D, in the world) the panel is a plain card; otherwise a modal overlay. */
-export const BoardContext = createContext(false);
-
-function Shell({ kicker, title, onClose, wide, children }: { kicker: string; title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) {
-  const onBoard = useContext(BoardContext);
-  const card = (
-    <div className={`glass w-full rounded-2xl p-5 sm:p-6 ${onBoard ? "h-full overflow-y-auto" : `max-h-[92dvh] overflow-y-auto overscroll-contain ${wide ? "max-w-2xl" : "max-w-md"}`}`} onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="eyebrow text-[11px]">{kicker}</div>
-          <div className="brand-title mt-1 text-3xl">{title}</div>
-        </div>
-        <button onClick={onClose} className="-mr-1 rounded-full px-2 text-lg text-white/60 hover:text-white" aria-label="Close">
-          ✕
-        </button>
-      </div>
-      <div className="mt-4 text-[15px] text-white/85 sm:text-sm">{children}</div>
-    </div>
-  );
-  if (onBoard) return card;
-  return (
-    <div className="pointer-events-auto fixed inset-0 z-30 flex items-end justify-center bg-black/50 p-3 sm:items-center" onClick={onClose}>
-      {card}
-    </div>
-  );
-}
-
-const field = "h-12 w-full rounded-[2px] border border-white/15 bg-white/[0.06] px-3.5 text-base outline-none transition placeholder:text-white/40 hover:border-white/40 focus:border-gold";
-const label = "mb-1.5 block font-[family-name:var(--font-label)] text-[12px] font-medium uppercase tracking-[0.08em] text-white/60";
-
-async function post(url: string, body: unknown) {
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  const data = await res.json().catch(() => ({ ok: false, error: "Something went wrong" }));
-  if (!data.ok) throw new Error(data.error ?? "Something went wrong");
-  return data;
-}
+// the card frame and these panels live in their own files (the /breakout and /merch pages use them
+// without the rest of the game); re-exported for the world's boards and the hall
+export { BoardContext, BreakoutPanel };
 
 // ---------- Get your Torch ----------
 
@@ -144,6 +111,7 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
   const [f, setF] = useState({ firstName: "", lastName: "", email: "", phone: "", country: "Nigeria" });
   const fullName = `${f.firstName.trim()} ${f.lastName.trim()}`.trim();
   const [member, setMember] = useState<boolean | null>(null);
+  const [installation, setInstallation] = useState("");
   const [firstTime, setFirstTime] = useState<boolean | null>(null);
   const [kids, setKids] = useState<boolean | null>(null);
   const [teens, setTeens] = useState<boolean | null>(null);
@@ -169,6 +137,7 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim()) &&
     f.phone.replace(/\D/g, "").length >= 7 &&
     member !== null &&
+    (!member || !!installation) &&
     firstTime !== null &&
     attendance !== null &&
     (attendance === "online" || days.length > 0) &&
@@ -181,6 +150,7 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     if (!ready) return setErr("Please answer every question first");
     if (member === null) return setErr("Are you a member of The New Church?");
+    if (member && !installation) return setErr("Which installation do you attend?");
     if (firstTime === null) return setErr("Is this your first time at The Feast?");
     if (attendance === null) return setErr("How will you be attending?");
     if (attendance === "onsite" && !days.length) return setErr("Which days will you be with us?");
@@ -193,7 +163,7 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setErr("");
     try {
-      const r = await post("/api/register", { ...f, member, firstTime, attendance, days: attendance === "onsite" ? days : [], kids, kidsCount: Number(kidsCount) || 0, kidsAges: ages, teens, teensCount: Number(teensCount) || 0 });
+      const r = await post("/api/register", { ...f, member, installation: member ? installation : "", firstTime, attendance, days: attendance === "onsite" ? days : [], kids, kidsCount: Number(kidsCount) || 0, kidsAges: ages, teens, teensCount: Number(teensCount) || 0 });
       setDone({ code: r.code, ticket: r.ticket, qr: r.qr, emailed: r.emailed, days: r.passDays, online: attendance === "online" });
       // your torch: carried from here on, and the Main Hall's doors open to you
       register({ code: r.code, ticket: r.ticket, qr: r.qr, days: r.passDays, online: attendance === "online", firstName: f.firstName.trim(), name: fullName, email: f.email.trim(), phone: f.phone.trim(), at: Date.now() });
@@ -320,6 +290,18 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
             </div>
           </div>
           <YesNo title="Are you a member of The New Church?" on={member} setOn={setMember} chip={chip} />
+          {member && (
+            <div>
+              <label className={label}>Which installation do you attend?</label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {INSTALLATIONS.map((i) => (
+                  <button key={i.id} type="button" aria-pressed={installation === i.name} className={chip(installation === i.name)} onClick={() => setInstallation(i.name)}>
+                    {i.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <YesNo title="Is this your first time at The Feast?" on={firstTime} setOn={setFirstTime} chip={chip} />
           <div>
             <label className={label}>How will you be attending?</label>
@@ -362,149 +344,8 @@ function RegisterPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ---------- Merch ----------
 
 /** A product shot on a soft studio backdrop. */
-function Swatch({ item, color, design, big }: { item: (typeof MERCH)[number]; color?: string; design?: number; big?: boolean }) {
-  return (
-    <div className={`flex items-center justify-center rounded-lg bg-[radial-gradient(circle_at_50%_35%,#f7f5f0,#d9d4ca_70%,#bdb6aa)] ${big ? "h-40 p-2" : "h-20 p-1"}`}>
-      <MerchArt item={item} color={color} design={design} className="h-full w-full" />
-    </div>
-  );
-}
-
-function MerchPanel({ onClose }: { onClose: () => void }) {
-  // what they've picked is kept through the trip to Get your Torch and back
-  const [pick, setPickRaw] = useDraft<string>("merch:pick", MERCH[0].id);
-  const item = MERCH.find((m) => m.id === pick)!;
-  const [size, setSize] = useDraft("merch:size", item.sizes[0]);
-  const [color, setColor] = useDraft("merch:color", item.colors[0]);
-  const [design, setDesign] = useDraft("merch:design", 0);
-  const [qty, setQty] = useDraft("merch:qty", 1);
-  const setPick = (id: string) => {
-    const next = MERCH.find((m) => m.id === id)!;
-    setPickRaw(id);
-    setSize(next.sizes[0]);
-    setColor(next.colors[0]);
-    setDesign(0);
-  };
-  const registered = useGame((s) => s.registered);
-  const [needTorch, setNeedTorch] = useState(false);
-  const f = whoIs();
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const [done, setDone] = useState(false);
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!registered) return setNeedTorch(true);
-    setBusy(true);
-    setErr("");
-    try {
-      await post("/api/merch", { name: f.name, email: f.email, phone: f.phone, item: item.id, size, color: color.name, design: item.designs?.[design], quantity: qty });
-      setDone(true);
-    } catch (x) {
-      setErr((x as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Shell kicker="Feast Merch" title={done ? "Pre-order received 🙌" : "Pre-order your Feast merch"} onClose={onClose} wide>
-      {done ? (
-        <p>
-          Thanks {f.name.split(" ")[0]}! Your pre-order for {qty} × {item.name} ({item.designs ? `${item.designs[design]}, ` : ""}{color.name}{item.sizes.length > 1 ? `, ${size}` : ""}) is in. Pick it up at the Merch booth at The Feast 2026; we&apos;ll be in touch at {f.email}.
-        </p>
-      ) : (
-        <form onSubmit={submit}>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
-            {MERCH.map((m) => (
-              <button
-                type="button"
-                key={m.id}
-                onClick={() => setPick(m.id)}
-                className={`rounded-xl border p-2 text-left transition ${pick === m.id ? "border-gold bg-gold/15" : "border-white/15 bg-white/5 hover:bg-white/10"}`}
-              >
-                <Swatch item={m} />
-                <div className="mt-1.5 text-[12px] font-bold leading-tight">{m.name}</div>
-              </button>
-            ))}
-          </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-[1.1fr_1fr]">
-            <Swatch item={item} color={color.hex} design={design} big />
-            <div>
-              <div className="text-base font-extrabold">{item.name}</div>
-              <p className="mt-1 text-[12px] text-white/70">{item.blurb}</p>
-              {item.designs && (
-                <>
-                  <label className={`${label} mt-3`}>Design · {item.designs[design]}</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {item.designs.map((d, i) => (
-                      <button
-                        type="button"
-                        key={d}
-                        onClick={() => setDesign(i)}
-                        className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition ${design === i ? "border-gold bg-gold text-black" : "border-white/20 bg-black/30 hover:border-white/50"}`}
-                      >
-                        {d}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-              <label className={`${label} mt-3`}>Colour · {color.name}</label>
-              <div className="flex gap-2">
-                {item.colors.map((c) => (
-                  <button
-                    type="button"
-                    key={c.name}
-                    title={c.name}
-                    aria-label={c.name}
-                    onClick={() => setColor(c)}
-                    className={`h-8 w-8 rounded-full border-2 shadow-inner transition ${color.name === c.name ? "border-gold scale-110" : "border-white/30 hover:border-white/70"}`}
-                    style={{ background: c.hex }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2.5">
-            <div>
-              <label className={label}>Size</label>
-              <select className={field} value={size} onChange={(e) => setSize(e.target.value)}>
-                {item.sizes.map((s) => (
-                  <option key={s} className="bg-black">
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={label}>Quantity</label>
-              <input className={field} type="number" min={1} max={20} value={qty} onChange={(e) => setQty(Math.max(1, Math.min(20, +e.target.value || 1)))} />
-            </div>
-          </div>
-          {registered && (
-            <div className="mt-3 text-[13px] text-white/70">
-              Pre-ordering as <b className="text-white">{f.name}</b> · {f.email}
-            </div>
-          )}
-          {/* pinned to the bottom of the form, always in view */}
-          <div className="sticky -bottom-5 -mx-5 -mb-5 mt-3 border-t border-white/10 bg-black/90 px-5 pb-5 pt-3 backdrop-blur sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:px-6 sm:pb-6">
-            {err && <div className="mb-2 text-xs text-red-300">{err}</div>}
-            {needTorch && !registered ? (
-              <TorchFirst what="your pre-order" back="merch" />
-            ) : (
-              <button className="btn-gold w-full py-3.5 text-[15px]" disabled={busy}>
-                {busy ? "Sending…" : "Pre-order"}
-              </button>
-            )}
-          </div>
-        </form>
-      )}
-    </Shell>
-  );
-}
-
 // ---------- WEND ----------
 
 /** The letters of a word in a new order (never the word itself). */
@@ -762,99 +603,6 @@ function WendPanel({ onClose }: { onClose: () => void }) {
           >
             Play again
           </button>
-        </div>
-      )}
-    </Shell>
-  );
-}
-
-// ---------- Breakout sessions (Friday, in the Main Hall) ----------
-
-/**
- * The breakout sessions board the hall's attendant opens: each session, what it's about and how
- * full it is; pick one and you have a numbered place (and an email to say so).
- */
-export function BreakoutPanel({ onClose }: { onClose: () => void }) {
-  const ticket = useGame((s) => s.registered?.ticket ?? "");
-  const firstName = useGame((s) => s.registered?.firstName ?? "");
-  const [state, setState] = useState<BreakoutState | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [err, setErr] = useState("");
-  useEffect(() => {
-    let live = true;
-    breakoutCall(ticket, "status")
-      .then((r) => live && setState(r))
-      .catch((x) => live && setErr((x as Error).message));
-    return () => {
-      live = false;
-    };
-  }, [ticket]);
-  const join = async (id: string) => {
-    setBusy(id);
-    setErr("");
-    try {
-      const r = await breakoutCall(ticket, "join", id);
-      setState(r);
-    } catch (x) {
-      setErr((x as Error).message);
-      // the places may have moved on: show them as they are now
-      breakoutCall(ticket, "status").then(setState).catch(() => {});
-    } finally {
-      setBusy(null);
-    }
-  };
-  const booked = state?.booked ? BREAKOUTS.find((b) => b.id === state.booked!.session) : null;
-  return (
-    <Shell kicker="Friday 11 Dec · Breakout sessions" title={booked ? "You're in! 🔥" : "Pick your breakout session"} onClose={onClose} wide>
-      {!state ? (
-        <p className="text-white/70">{err || "Getting the sessions…"}</p>
-      ) : !state.eligible ? (
-        <p>Breakout sessions are for everyone joining us onsite on Friday, 11 December.</p>
-      ) : booked ? (
-        <div>
-          <p>
-            {firstName ? `${firstName}, your` : "Your"} registration for <b>{breakoutTitle(booked)}</b> break-out session at The Feast 2026 is confirmed! Your confirmation is on its way to
-            your email.
-          </p>
-          {/* your number in your session (the overall breakout number stays on the sheet) */}
-          <div className="mt-4 rounded bg-gold px-4 py-3 text-center text-black">
-            <div className="text-[10px] font-bold uppercase tracking-[0.2em]">Your number in {booked.name}</div>
-            <div className="text-2xl font-black">No. {state.booked!.sessionNumber ?? "–"}</div>
-          </div>
-          <button className="btn-gold mt-4 w-full py-3 text-[14px]" onClick={onClose}>
-            Back to the hall →
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-white/80">Choose the session you&apos;ll join on Friday. Places are limited: each session shows how full it is.</p>
-          {BREAKOUTS.map((b) => {
-            const s = state.sessions.find((x) => x.id === b.id);
-            const taken = s?.taken ?? 0;
-            const full = taken >= b.cap;
-            const pct = Math.min(100, Math.round((taken / b.cap) * 100));
-            return (
-              <div key={b.id} className="rounded-xl border border-white/15 bg-white/[0.04] p-4">
-                <div className="flex items-baseline justify-between gap-3">
-                  <div className="text-lg font-black leading-tight">{b.name}</div>
-                  {b.tag !== b.name && <div className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-gold">{b.tag}</div>}
-                </div>
-                <p className="mt-1.5 text-[13px] leading-snug text-white/75">{b.about}</p>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${b.name}: ${pct}% full`}>
-                  <div className={`h-full rounded-full ${full ? "bg-red-400" : "bg-gold"}`} style={{ width: `${pct}%` }} />
-                </div>
-                <div className="mt-1.5 flex items-center justify-between gap-3">
-                  <span className="text-[12px] text-white/65">
-                    {full ? "Full" : `${pct}% full`}
-                  </span>
-                  <button className="btn-gold px-4 py-2 text-[12px] disabled:cursor-not-allowed disabled:opacity-40" disabled={full || !!busy} onClick={() => join(b.id)}>
-                    {full ? "Full" : busy === b.id ? "Saving…" : "Choose"}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-          {err && <div className="text-xs text-red-300">{err}</div>}
         </div>
       )}
     </Shell>
