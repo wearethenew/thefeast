@@ -5,11 +5,12 @@ import { PageContext } from "./Shell";
 
 /**
  * A page of its own outside the game (/breakout, /merch): The Feast's name at the top, the card in
- * the middle, and the way into The Feast at the bottom.
+ * the middle, and the way into The Feast at the bottom. The site keeps the page itself still for the
+ * game, so the frame scrolls on its own.
  */
 export function PageFrame({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-dvh bg-royal-deep bg-[radial-gradient(ellipse_at_50%_0%,rgba(242,184,31,0.18),transparent_60%)] px-3 pb-10 pt-8 text-white sm:px-6">
+    <main className="fixed inset-0 overflow-y-auto overscroll-contain bg-royal-deep bg-[radial-gradient(ellipse_at_50%_0%,rgba(242,184,31,0.18),transparent_60%)] px-3 pb-10 pt-8 text-white sm:px-6">
       <Link href="/" className="mx-auto block w-fit text-center">
         <div className="text-[11px] tracking-[0.5em] text-white/70">THE FEAST 2026</div>
         <div className="gold-text mt-1 text-4xl font-black tracking-tight sm:text-5xl">THE TORCH</div>
