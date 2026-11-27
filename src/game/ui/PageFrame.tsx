@@ -8,7 +8,7 @@ import { PageContext } from "./Shell";
  * the middle, and the way into The Feast at the bottom. The site keeps the page itself still for the
  * game, so the frame scrolls on its own.
  */
-export function PageFrame({ children }: { children: React.ReactNode }) {
+export function PageFrame({ children, footer = true }: { children: React.ReactNode; /** The way to Get your Torch at the bottom (not on /register itself). */ footer?: boolean }) {
   return (
     <main className="fixed inset-0 overflow-y-auto overscroll-contain bg-royal-deep bg-[radial-gradient(ellipse_at_50%_0%,rgba(242,184,31,0.18),transparent_60%)] px-3 pb-10 pt-8 text-white sm:px-6">
       <Link href="/" className="mx-auto block w-fit text-center">
@@ -19,9 +19,11 @@ export function PageFrame({ children }: { children: React.ReactNode }) {
       <div className="mt-7 flex justify-center">
         <PageContext.Provider value={true}>{children}</PageContext.Provider>
       </div>
-      <Link href="/" className="mx-auto mt-6 block w-fit text-[13px] text-white/75 underline-offset-4 hover:text-white hover:underline">
-        Not registered yet? Get your torch at thefeast.wearethenew.org →
-      </Link>
+      {footer && (
+        <Link href="/register" className="mx-auto mt-6 block w-fit text-[13px] text-white/75 underline-offset-4 hover:text-white hover:underline">
+          Not registered yet? Get your torch at thefeast.wearethenew.org/register →
+        </Link>
+      )}
     </main>
   );
 }
