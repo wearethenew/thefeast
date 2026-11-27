@@ -13,7 +13,7 @@ import { AvatarPicker } from "./ui/AvatarPicker";
 import * as THREE from "three";
 import { preloadAvatars } from "./avatar/Avatar";
 import { WorldScene } from "./scenes/WorldScene";
-import { CrowdBaker, WALK_AVATARS, useCrowdProgress } from "./crowd/CrowdBaker";
+import { CrowdBaker, FIRST_WALKERS, useCrowdProgress } from "./crowd/CrowdBaker";
 
 const LOADING = "Bringing great joy to the city…";
 
@@ -94,8 +94,11 @@ function Loader() {
     const id = setTimeout(() => setWaited(true), 90000);
     return () => clearTimeout(id);
   }, []);
-  const crowdShare = waited ? 1 : Math.min(1, crowd / WALK_AVATARS.length);
-  const filesDone = !active;
+  // (only the first few walkers: the rest bake while the film plays)
+  const crowdShare = waited ? 1 : Math.min(1, crowd / FIRST_WALKERS);
+  // once the city is ready its files are all in: whatever's still loading after that is the crowd's
+  // next people, which never hold the film up
+  const filesDone = !active || warm;
   const ready = stage !== "title" || (filesDone && warm && crowdShare >= 1);
   useEffect(() => {
     if (ready && stage === "title" && !useGame.getState().ready) useGame.getState().set({ ready: true });

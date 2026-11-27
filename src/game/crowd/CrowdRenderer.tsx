@@ -5,7 +5,7 @@ import { FOOT_Y } from "../world/compound";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { AVATARS } from "../data/avatars";
-import { STANDING_AVATARS, WALK_AVATARS, getModel, useCrowdProgress, type CrowdAnim } from "./CrowdBaker";
+import { FIRST_WALKERS, STANDING_AVATARS, getModel, useCrowdProgress, type CrowdAnim } from "./CrowdBaker";
 import { flameMaterial, lookMaterial, vatClock, vatDepthMaterial, vatMaterial, type Baked } from "./vat";
 import { Q } from "../quality";
 
@@ -116,10 +116,13 @@ export function CrowdRenderer({ agents, capacity = 400, near = 14, shadows = tru
   const groupsRef = useRef<Map<string, Group> | null>(null);
   /** Groups built and still compiling. */
   const pending = useRef(new Set<string>());
+  /** Someone whose own person isn't built yet: a built person of the same sex, until theirs is in. */
+  const standIns = useRef(new Map<string, Group>());
   useEffect(() => {
     const out = new Map<string, Group>();
     groupsRef.current = out;
     pending.current = new Set();
+    standIns.current = new Map();
     return () => {
       groupsRef.current = null;
       root.traverse((o) => {
@@ -131,8 +134,8 @@ export function CrowdRenderer({ agents, capacity = 400, near = 14, shadows = tru
   }, [capacity, shadows, root]);
   useEffect(() => {
     const out = groupsRef.current;
-    // (from when everyone walking is in: the campus crowds; the rest join as they bake)
-    if (!out || progress < WALK_AVATARS.length) return;
+    // (from when the first walkers are in: the campus crowds; the rest join as they bake)
+    if (!out || progress < FIRST_WALKERS) return;
     // this batch of new groups goes on its own node, compiled in the background before showing
     const batch = new THREE.Group();
     const fresh: [string, Group][] = [];
@@ -153,6 +156,7 @@ export function CrowdRenderer({ agents, capacity = 400, near = 14, shadows = tru
         if (groupsRef.current !== out) return;
         batch.traverse((o) => o.layers.set(0));
         for (const [k, g] of fresh) out.set(k, g);
+        standIns.current = pickStandIns(out);
       });
   }, [progress, capacity, shadows, root, gl, camera, scene]);
 
@@ -172,7 +176,8 @@ export function CrowdRenderer({ agents, capacity = 400, near = 14, shadows = tru
       // standing on the surface (laid just above y = 0), not sunk into it
       const y = (a.y ?? 0) + FOOT_Y;
       if (!_frustum.intersectsSphere(_sphere)) continue;
-      const g = (a.torch === false && groups.get(groupKey(a.avatar, a.anim, true))) || groups.get(groupKey(a.avatar, a.anim, false));
+      const key = groupKey(a.avatar, a.anim, false);
+      const g = (a.torch === false && groups.get(groupKey(a.avatar, a.anim, true))) || groups.get(key) || standIns.current.get(key);
       if (!g) continue;
       // full detail (and shadows) only close up, and only for so many people at once; the lightest
       // far off (measured from the camera itself, so a drone's height counts too)
@@ -219,6 +224,25 @@ export function CrowdRenderer({ agents, capacity = 400, near = 14, shadows = tru
       }
   });
   return <primitive object={root} />;
+}
+
+/**
+ * For everyone not built yet, a built person doing the same thing: the same sex when there is one
+ * (spread over those built, so it isn't one face over and over), until their own is in.
+ */
+function pickStandIns(out: Map<string, Group>) {
+  const map = new Map<string, Group>();
+  for (const anim of ["walk", "sit", "idle", "wave"] as CrowdAnim[]) {
+    const built = AVATARS.map((_, a) => a).filter((a) => out.has(`${a}:${anim}`));
+    if (!built.length) continue;
+    AVATARS.forEach((av, a) => {
+      if (out.has(`${a}:${anim}`)) return;
+      const same = built.filter((b) => AVATARS[b].sex === av.sex);
+      const pool = same.length ? same : built;
+      map.set(`${a}:${anim}`, out.get(`${pool[a % pool.length]}:${anim}`)!);
+    });
+  }
+  return map;
 }
 
 /** The group key for an avatar's clip ("3:walk", "3:walk:bare"), built once and reused every frame. */

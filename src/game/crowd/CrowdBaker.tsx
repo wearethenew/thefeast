@@ -3,7 +3,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import * as THREE from "three";
-import { preloadAvatar, type AvatarHandle } from "../avatar/Avatar";
+import { crowdFile, preloadAvatar, type AvatarHandle } from "../avatar/Avatar";
 import { Character } from "../avatar/Character";
 import { AVATARS } from "../data/avatars";
 import { bakeSteps, simplifierReady, type Baked } from "./vat";
@@ -15,10 +15,21 @@ import { Q } from "../quality";
 export type CrowdAnim = "walk" | "sit" | "idle" | "wave";
 /** Everyone walks; a mix of casual and corporate people also sit, and some stand at the desks. */
 export const WALK_AVATARS = AVATARS.map((_, i) => i);
+/**
+ * The order the walkers are built in: women and men in turn, so the first few are a mix. The film
+ * starts once FIRST_WALKERS are in (the rest bake while it plays; until they're in, the crowd draws
+ * a built person of the same sex in their place: see CrowdRenderer).
+ */
+const WALK_ORDER = (() => {
+  const f = WALK_AVATARS.filter((i) => AVATARS[i].sex === "f");
+  const m = WALK_AVATARS.filter((i) => AVATARS[i].sex === "m");
+  return Array.from({ length: Math.max(f.length, m.length) }, (_, k) => [f[k], m[k]]).flat().filter((i) => i !== undefined);
+})();
+export const FIRST_WALKERS = 4;
 export const SIT_AVATARS = [0, 3, 6, 8, 10, 12];
 export const STANDING_AVATARS = [1, 4, 7, 11];
 const JOBS = [
-  ...WALK_AVATARS.map((i) => ({ avatar: AVATARS[i], i, anim: "walk" as CrowdAnim })),
+  ...WALK_ORDER.map((i) => ({ avatar: AVATARS[i], i, anim: "walk" as CrowdAnim })),
   ...SIT_AVATARS.map((i) => ({ avatar: AVATARS[i], i, anim: "sit" as CrowdAnim })),
   ...STANDING_AVATARS.flatMap((i) => (["idle", "wave"] as CrowdAnim[]).map((anim) => ({ avatar: AVATARS[i], i, anim }))),
 ];
@@ -76,7 +87,7 @@ export function CrowdBaker() {
   // the next person's model on its way while this one bakes (one ahead, never the whole cast)
   useEffect(() => {
     const next = JOBS[job + 1];
-    if (next) preloadAvatar(next.avatar.file);
+    if (next) preloadAvatar(crowdFile(next.avatar.file));
   }, [job]);
   useFrame(() => {
     const next = uploads.current.shift();
@@ -125,7 +136,7 @@ export function CrowdBaker() {
     <group ref={root} position={[0, -400, 0]} visible={false}>
       {/* its own boundary: a person still loading must never hide the scene that's on screen */}
       <Suspense fallback={null}>
-        <Character key={job} ref={handle} avatarId={J.avatar.id} robe={false} anim={J.anim} torch={TORCH[J.anim] ? "lit" : "none"} torchLight={false} />
+        <Character key={job} ref={handle} avatarId={J.avatar.id} lite robe={false} anim={J.anim} torch={TORCH[J.anim] ? "lit" : "none"} torchLight={false} />
       </Suspense>
     </group>
   );

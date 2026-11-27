@@ -6,7 +6,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { GEAR } from "./Approach";
 import { billboardFrame } from "./RoadScreen";
-import { WALK_AVATARS, useCrowdProgress } from "../crowd/CrowdBaker";
+import { FIRST_WALKERS, useCrowdProgress } from "../crowd/CrowdBaker";
 import { CrowdRenderer, type Agent } from "../crowd/CrowdRenderer";
 import { SetTraffic } from "./SetTraffic";
 import {
@@ -430,7 +430,7 @@ export function OpeningFilm({ world }: { world: LagosWorld }) {
   const cut = useRef(false);
   // the campus crowds can be drawn: everyone walking (sitting and standing poses carry on baking
   // in the background, for the Fusion Centre)
-  const ready = useCrowdProgress() >= WALK_AVATARS.length;
+  const ready = useCrowdProgress() >= FIRST_WALKERS;
   const streets = useMemo(() => streetPaths(world), [world]);
   const yard = useMemo(() => yardPaths(), []);
   const agents = useRef<Agent[]>([]);
