@@ -12,14 +12,23 @@ import { withKTX2 } from "./ktx2";
 const CORE_ANIMS: AnimName[] = ["idle", "walk", "sit", "wave"];
 
 /**
- * At the start: only your own avatar (and the clips, which are small), never the whole cast at
- * once: unpacking every person together is what a phone can't take while the city loads. The
- * crowd's people load one at a time as they're baked (see CrowdBaker, and preloadAvatar).
+ * At the start: only your own avatar and the walking clips (small: the crowd's first people are
+ * built walking), never the whole cast at once: unpacking every person together is what a phone
+ * can't take while the city loads. The crowd's people load one at a time as they're baked (see
+ * CrowdBaker, and preloadAvatar); the rest of the clips once the film is playing (preloadClips).
  */
 export function preloadAvatars(yours: string) {
   const me = AVATARS.find((a) => a.id === yours) ?? AVATARS[0];
   preloadAvatar(me.file);
-  for (const sex of ["f", "m"] as Sex[]) for (const n of CORE_ANIMS) useGLTF.preload(animFile(sex, n));
+  for (const sex of ["f", "m"] as Sex[]) useGLTF.preload([animFile(sex, "walk")]);
+}
+/**
+ * Every avatar's clips (sitting is the big one), fetched in the background once the film is
+ * playing: in well before anyone sits, waves or stands about in the hall. (The same list an avatar
+ * asks for, so it's the very same load.)
+ */
+export function preloadClips() {
+  for (const sex of ["f", "m"] as Sex[]) useGLTF.preload(CORE_ANIMS.map((n) => animFile(sex, n)));
 }
 /** One avatar's model, fetched ahead of when it's needed. */
 export const preloadAvatar = (file: string) => useGLTF.preload(file, true, true, withKTX2);
@@ -29,10 +38,13 @@ export const preloadAvatar = (file: string) => useGLTF.preload(file, true, true,
  */
 export const crowdFile = (file: string) => file.replace("/avatars/", "/avatars/crowd/");
 
-/** Loads all clips for one sex, renamed to their AnimName and made in-place (no root drift). */
-function useClips(sex: Sex, extra?: AnimName) {
+/**
+ * Loads all clips for one sex, renamed to their AnimName and made in-place (no root drift); or,
+ * `only`, just the one it plays (the crowd's people, built doing one thing each).
+ */
+function useClips(sex: Sex, extra?: AnimName, only = false) {
   const wantExtra = extra && !CORE_ANIMS.includes(extra) ? extra : null;
-  const ANIMS = useMemo(() => (wantExtra ? [...CORE_ANIMS, wantExtra] : CORE_ANIMS), [wantExtra]);
+  const ANIMS = useMemo(() => (only && extra ? [extra] : wantExtra ? [...CORE_ANIMS, wantExtra] : CORE_ANIMS), [only, extra, wantExtra]);
   const files = ANIMS.map((n) => animFile(sex, n));
   const gltfs = useGLTF(files) as unknown as { animations: THREE.AnimationClip[] }[];
   return useMemo(() => {
@@ -90,7 +102,8 @@ export const Avatar = forwardRef<AvatarHandle, Props>(function Avatar(
 ) {
   const def = AVATARS.find((a) => a.id === avatarId) ?? AVATARS[0];
   const gltf = useGLTF(lite ? crowdFile(def.file) : def.file, true, true, withKTX2);
-  const clips = useClips(def.sex, anim);
+  // (the crowd's people play one clip each: only that one)
+  const clips = useClips(def.sex, anim, lite);
   const groupRef = useRef<THREE.Group>(null!);
 
   const rig = useMemo(() => {

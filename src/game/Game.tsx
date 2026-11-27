@@ -11,7 +11,7 @@ import { BoothPanels } from "./ui/BoothPanels";
 import { useSheetForms, useSmallScreen } from "./ui/useSmallScreen";
 import { AvatarPicker } from "./ui/AvatarPicker";
 import * as THREE from "three";
-import { preloadAvatars } from "./avatar/Avatar";
+import { preloadAvatars, preloadClips } from "./avatar/Avatar";
 import { WorldScene } from "./scenes/WorldScene";
 import { CrowdBaker, FIRST_WALKERS, useCrowdProgress } from "./crowd/CrowdBaker";
 
@@ -102,6 +102,8 @@ function Loader() {
   const ready = stage !== "title" || (filesDone && warm && crowdShare >= 1);
   useEffect(() => {
     if (ready && stage === "title" && !useGame.getState().ready) useGame.getState().set({ ready: true });
+    // the film's on: now the rest of the clips (sitting, waving…), in the background
+    if (ready) preloadClips();
   }, [ready, stage]);
   const reached = useRef(4);
   const target = 4 + (filesDone ? 46 : (progress / 100) * 46) + (warm ? 15 : 0) + crowdShare * 35;
