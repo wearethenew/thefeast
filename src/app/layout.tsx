@@ -1,13 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Allura, DM_Serif_Display, Geist_Mono, Manrope } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 // The New's type (see The-New-App/brand.md): Manrope for text and UI, a bold serif for headings
 // (DM Serif Display, the free stand-in for Larken), Geist Mono for eyebrows and labels
-const manrope = Manrope({ variable: "--font-display", subsets: ["latin"], weight: ["400", "500", "600", "700", "800"] });
-const serif = DM_Serif_Display({ variable: "--font-head", subsets: ["latin"], weight: "400" });
-const mono = Geist_Mono({ variable: "--font-label", subsets: ["latin"], weight: ["400", "500", "600"] });
-const allura = Allura({ variable: "--font-script", subsets: ["latin"], weight: "400" });
+// The font files live in ./fonts (Google's own, Latin, from Fontsource; SIL Open Font License), so a
+// build never has to reach Google Fonts: fetching them there made deploys fail now and then.
+const manrope = localFont({ variable: "--font-display", src: "./fonts/manrope-latin-wght-normal.woff2", weight: "200 800", fallback: ["Arial", "sans-serif"] });
+const serif = localFont({ variable: "--font-head", src: "./fonts/dm-serif-display-latin-400-normal.woff2", weight: "400", fallback: ["Georgia", "serif"] });
+const mono = localFont({ variable: "--font-label", src: "./fonts/geist-mono-latin-wght-normal.woff2", weight: "100 900", fallback: ["ui-monospace", "monospace"] });
+const allura = localFont({ variable: "--font-script", src: "./fonts/allura-latin-400-normal.woff2", weight: "400", fallback: ["cursive"] });
 
 export const metadata: Metadata = {
   title: "The Feast 2026 · The Torch",
