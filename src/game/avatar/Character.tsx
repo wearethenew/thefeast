@@ -57,6 +57,8 @@ export type CharacterProps = Omit<ThreeElements["group"], "ref"> & {
   torchLight?: boolean;
   torchShadows?: boolean;
   timeScale?: number;
+  /** The crowd's lighter copy of the person (textures one size down). */
+  lite?: boolean;
 };
 
 const FINGER_CHAINS = [
@@ -142,7 +144,7 @@ function gripHand(r: Rig, hand: THREE.Bone, axis: THREE.Vector3, across: THREE.V
 }
 
 export const Character = forwardRef<AvatarHandle, CharacterProps>(function Character(
-  { avatarId, robeId = "royal", robe: wearRobe = true, skin, hoodUp = false, anim = "idle", torch = "lit", raiseTorch = false, torchLight = true, torchShadows = false, timeScale, clipboard = false, ...group },
+  { avatarId, robeId = "royal", robe: wearRobe = true, skin, hoodUp = false, anim = "idle", torch = "lit", raiseTorch = false, torchLight = true, torchShadows = false, timeScale, clipboard = false, lite = false, ...group },
   ref,
 ) {
   const robe = ROBES.find((r) => r.id === robeId) ?? ROBES[0];
@@ -231,7 +233,7 @@ export const Character = forwardRef<AvatarHandle, CharacterProps>(function Chara
 
   return (
     <group {...group}>
-      <Avatar ref={ref} avatarId={avatarId} anim={anim} skin={skin} onRig={onRig} afterAnimate={afterAnimate} timeScale={timeScale} />
+      <Avatar ref={ref} avatarId={avatarId} anim={anim} skin={skin} onRig={onRig} afterAnimate={afterAnimate} timeScale={timeScale} lite={lite} />
       {clipboard && torch === "none" && ready && <Clipboard ref={torchRef} />}
       {torch !== "none" && ready && (
         <Torch ref={torchRef} lit={torch === "lit"} light={torchLight} shadows={torchShadows} />

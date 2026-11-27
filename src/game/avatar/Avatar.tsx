@@ -23,6 +23,11 @@ export function preloadAvatars(yours: string) {
 }
 /** One avatar's model, fetched ahead of when it's needed. */
 export const preloadAvatar = (file: string) => useGLTF.preload(file, true, true, withKTX2);
+/**
+ * The crowd's lighter copy of an avatar's file: the same person, textures one size down (see
+ * scripts/build-crowd-avatars.mjs). People in the crowd are small on screen.
+ */
+export const crowdFile = (file: string) => file.replace("/avatars/", "/avatars/crowd/");
 
 /** Loads all clips for one sex, renamed to their AnimName and made in-place (no root drift). */
 function useClips(sex: Sex, extra?: AnimName) {
@@ -75,14 +80,16 @@ type Props = ThreeElements["group"] & {
   timeScale?: number;
   /** Runs every frame right after the animation mixer, for IK / pose overrides. */
   afterAnimate?: (dt: number) => void;
+  /** The crowd's lighter copy of the model (see crowdFile). */
+  lite?: boolean;
 };
 
 export const Avatar = forwardRef<AvatarHandle, Props>(function Avatar(
-  { avatarId, anim = "idle", skin = "#ffffff", onRig, timeScale = 1, afterAnimate, ...group },
+  { avatarId, anim = "idle", skin = "#ffffff", onRig, timeScale = 1, afterAnimate, lite = false, ...group },
   ref,
 ) {
   const def = AVATARS.find((a) => a.id === avatarId) ?? AVATARS[0];
-  const gltf = useGLTF(def.file, true, true, withKTX2);
+  const gltf = useGLTF(lite ? crowdFile(def.file) : def.file, true, true, withKTX2);
   const clips = useClips(def.sex, anim);
   const groupRef = useRef<THREE.Group>(null!);
 
