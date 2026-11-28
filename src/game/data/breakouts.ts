@@ -1,4 +1,4 @@
-// Saturday's breakout sessions (12 Dec, onsite only). Each has its own capacity; 750 places in all.
+// Saturday's breakout sessions (12 Dec, onsite only). Each has its own capacity; 800 places in all.
 // Registration happens in the Main Hall: the attendant at the round table just inside the doors
 // stops onsite Saturday registrants as they walk in (see Venue's Attendant and /api/breakout).
 
@@ -36,7 +36,7 @@ export const BREAKOUTS: Breakout[] = [
     tag: "Business & Career",
     about:
       "This is for professionals, entrepreneurs, and career builders seeking to align their work with purpose and impact. Here, you will gain real insights on how to make money, and achieve growth and excellence.",
-    cap: 200,
+    cap: 250,
   },
   {
     id: "seers",
